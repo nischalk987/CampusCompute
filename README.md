@@ -19,6 +19,8 @@ CampusCompute is an Operating Systems Level 3 mini-project for demonstrating cor
 
 ## Architecture
 
+**Detailed architecture diagrams:** [Open ARCHITECTURE.md](ARCHITECTURE.md) for the system-context diagram, layered component architecture, module responsibilities, scheduling data flow, dashboard request sequence, and cleanup/error-handling flow.
+
 The planned system has three layers:
 
 1. **Frontend dashboard (optional UI):** Overview cards, scheduling results, IPC activity, resource-safety analysis, process status, and terminal-style interaction.
