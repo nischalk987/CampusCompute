@@ -19,7 +19,7 @@ bool banker_validate_and_calculate(BankerState *s,char *error,size_t error_size)
             if(s->allocation[p][r]>s->maximum[p][r]) {
                 (void)snprintf(error,error_size,
                     "Invalid matrix: Allocation[P%zu][R%zu] (%u) exceeds Maximum (%u).",
-                    p,s->allocation[p][r],s->maximum[p][r]);
+                    p,r,s->allocation[p][r],s->maximum[p][r]);
                 return false;
             }
         }
