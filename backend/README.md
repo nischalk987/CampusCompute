@@ -6,50 +6,88 @@ FastAPI is an optional local adapter. It exposes a small allowlist, not a shell,
 
 From the repository root:
 
-\`\`\`bash
+```bash
 sudo apt update
 sudo apt install -y build-essential python3 python3-venv python3-pip
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r backend/requirements.txt
 uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
-\`\`\`
+```
 
 In another terminal, start the UI:
 
-\`\`\`bash
+```bash
 cd frontend
 npm install
 npm run dev
-\`\`\`
+```
 
-The local API documentation is at http://127.0.0.1:8000/docs.
+The local API documentation is at `http://127.0.0.1:8000/docs`.
 
-## Current endpoints
+## Current endpoint contract
 
-| Method and route | Purpose | Data source |
+| Method and route | Purpose | Actual support |
 |---|---|---|
-| \`GET /health\` | Adapter health and module capability states | Actual adapter config |
-| \`GET /api/modules\` | Explicit UI/API capability inventory | Integration contract |
-| \`POST /api/producer-consumer?event_count=12\` | Run compiled FR3 executable and return parsed log records | Real C engine, temporary log |
+| `GET /health` | Adapter health and implemented-module capability states | Available |
+| `GET /api/modules` | Explicit module/API capability inventory | Available |
+| `POST /api/producer-consumer?event_count=12` | Run compiled FR3 executable and return parsed real log records | Available; event count 1–100000 |
 
-FR1, FR2 and FR5 remain usable via their C CLIs but have no structured non-interactive interfaces, so this adapter does not claim to return their live results. FR4, FR6, FR7 and the integrated FR8 dispatcher are not implemented and are not exposed. There is no shell or terminal endpoint.
+Successful producer-consumer response shape:
 
-## Safety and lifecycle
+```json
+{
+  "status": "success",
+  "source": "C engine",
+  "event_count_requested": 3,
+  "events_produced": 3,
+  "events": [
+    {"timestamp": "runtime timestamp", "sequence": 1, "message": "OS activity event 1: job state changed"}
+  ],
+  "summary": "Summary: produced=3 consumed=3 queued=0"
+}
+```
 
-- Executable paths are fixed beneath \`engine/src\`; the request cannot select executable paths.
-- Calls use an argv array with \`shell=False\`.
-- Event counts are limited to 1–100000.
-- C builds have a 45-second timeout and module execution has a 15-second timeout.
-- CORS defaults to localhost Vite origins; customize through \`CAMPUSCOMPUTE_ALLOWED_ORIGINS\` only for origins you control.
-- Logs are written to an isolated temporary directory and removed after the request.
-- The adapter binds to \`127.0.0.1\` by default. Do not expose this development service publicly.
+The timestamp and event text above illustrate the schema only; runtime values come from the C module.
+
+## Capability matrix
+
+- FR1 job manager: implemented standalone C CLI; structured HTTP CRUD/list is not yet implemented.
+- FR2 scheduler: implemented standalone C CLI; structured scheduling endpoint is not yet implemented.
+- FR3 producer–consumer: API invokes the actual C executable and returns parsed log records.
+- FR4 shared-memory IPC: not implemented, so no API operation is exposed.
+- FR5 Banker: implemented standalone C CLI; structured endpoint is not yet implemented.
+- FR6 worker process demo, FR7 resource limits and integrated FR8 dispatcher: not implemented, so no API operations are exposed.
+- Terminal: direct local CLI only; no shell endpoint exists.
+
+These boundaries are deliberate. An unavailable module is reported as unavailable rather than returning fabricated results.
+
+## Errors and lifecycle
+
+| Condition | HTTP status | Behavior |
+|---|---:|---|
+| Invalid, missing, non-integer or out-of-range event count | 422 | Reject before launching the C process |
+| C build or executable unavailable | 503 | Return an actionable build/tooling error |
+| C operation exceeds its deadline | 504 | Report timeout |
+| C process returns non-zero | 422 | Return bounded stderr/stdout detail |
+| Log missing, malformed or inconsistent with requested count | 502 | Reject output instead of returning false success |
+| Unhandled filesystem/read failure | 500 | Report that log processing failed |
+
+## Security boundaries
+
+- Fixed executable path below `engine/src`; clients cannot select a binary, working directory or argv.
+- Uses `subprocess.run` with an argument array and `shell=False`.
+- Event count restricted to 1–100000; execution timeout 15 seconds; build timeout 45 seconds.
+- Binds to `127.0.0.1` by default and CORS allows only localhost Vite origins.
+- Uses a new temporary directory per run; deletes the temporary activity log after response creation.
+- No HTTP terminal, arbitrary command, shell string, or file-path API.
 
 ## Tests
 
-\`\`\`bash
-python -m pip install -r backend/requirements.txt
-PYTHONPATH=backend pytest -q backend/tests
-\`\`\`
+From repository root with the `.venv` activated:
 
-Tests cover capability reporting, input limits, real FR3 invocation, and the absence of arbitrary shell execution.
+```bash
+PYTHONPATH=backend pytest -q backend/tests
+```
+
+The suite checks actual FR3 execution, request validation, unavailable engine, timeout, non-zero engine status, malformed logs, module capability reporting, and the absence of a shell route.
