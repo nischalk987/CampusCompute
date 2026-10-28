@@ -6,8 +6,9 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -122,36 +123,42 @@ def modules() -> dict:
 
 
 @app.post("/api/producer-consumer")
-def producer_consumer(event_count: int = 12) -> dict:
-    if event_count < 1 or event_count > 100_000:
-        raise HTTPException(422, "event_count must be an integer from 1 through 100000.")
+def producer_consumer(event_count: Annotated[int, Query(ge=1, le=100_000)] = 12) -> dict:
     executable = _executable(ENGINE_ROOT / "producer_consumer" / "producer_consumer")
     try:
         # Isolate output and remove the temporary log regardless of request outcome.
         with tempfile.TemporaryDirectory(prefix="campuscompute-") as temp_dir:
             log_path = Path(temp_dir) / "activity.log"
             result = _run_fixed(executable, [str(event_count), str(log_path)])
+            if not log_path.exists():
+                raise HTTPException(502, "The C module completed without creating its activity log.")
+            lines = log_path.read_text(encoding="utf-8").splitlines()
+            if not lines or lines[0] != "timestamp\tsequence\tmessage":
+                raise HTTPException(502, "The C module produced an invalid activity-log header.")
             events = []
-            if log_path.exists():
-                lines = log_path.read_text(encoding="utf-8").splitlines()
-                for line in lines[1:]:
-                    fields = line.split("\t", 2)
-                    if len(fields) == 3:
-                        events.append({
-                            "timestamp": fields[0],
-                            "sequence": int(fields[1]),
-                            "message": fields[2],
-                        })
+            for line in lines[1:]:
+                fields = line.split("\t", 2)
+                if len(fields) != 3:
+                    raise HTTPException(502, "The C module produced a malformed activity-log record.")
+                try:
+                    sequence = int(fields[1])
+                except ValueError as exc:
+                    raise HTTPException(502, "The C module produced a non-numeric event sequence.") from exc
+                events.append({"timestamp": fields[0], "sequence": sequence, "message": fields[2]})
+            if len(events) != event_count or [event["sequence"] for event in events] != list(range(1, event_count + 1)):
+                raise HTTPException(502, "The C module event log did not match the requested event count.")
+            summary = next(
+                (line.strip() for line in result.stdout.splitlines() if line.startswith("Summary:")), ""
+            )
+            if not summary:
+                raise HTTPException(502, "The C module did not return its expected completion summary.")
             return {
                 "status": "success",
                 "source": "C engine",
                 "event_count_requested": event_count,
                 "events_produced": len(events),
                 "events": events,
-                "summary": next(
-                    (line.strip() for line in result.stdout.splitlines()
-                     if line.startswith("Summary:")), ""
-                ),
+                "summary": summary,
             }
     except HTTPException:
         raise
