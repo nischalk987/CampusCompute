@@ -27,8 +27,11 @@ static bool valid_id(const char *id) {
 static bool reserve_one(JobManager *m) {
     if (m->count < m->capacity) return true;
     if (m->capacity >= MAX_JOB_COUNT) return false;
-    size_t cap = m->capacity ? m->capacity * 2 : INITIAL_CAPACITY;
-    if (cap < m->capacity || cap > MAX_JOB_COUNT) cap = MAX_JOB_COUNT;
+    size_t cap;
+    if (m->capacity == 0) cap = INITIAL_CAPACITY;
+    else if (m->capacity > MAX_JOB_COUNT / 2U) cap = MAX_JOB_COUNT;
+    else cap = m->capacity * 2U;
+    if (cap > MAX_JOB_COUNT) cap = MAX_JOB_COUNT;
     if (cap > SIZE_MAX / sizeof(*m->jobs)) return false;
     Job *p = realloc(m->jobs, cap * sizeof(*m->jobs));
     if (!p) return false;
