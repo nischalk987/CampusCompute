@@ -149,6 +149,32 @@ Follow the instructor's current submission instructions and include only evidenc
 8. Add the optional dashboard and integration service after the C modules have stable inputs and outputs.
 9. Capture authentic terminal evidence and package the final source/build files.
 
+
+
+## FR3 — POSIX producer–consumer activity logger
+
+The first implemented OS module lives in `engine/src/producer_consumer/`. It uses a fixed-capacity circular buffer protected by a POSIX mutex and two condition variables. A producer thread queues activity events; a consumer thread drains the queue, prints timestamped entries, and writes them to a tab-separated log. Shutdown signals the consumer, drains pending entries, joins both threads, and reports produced/consumed counts.
+
+### Build and test FR3
+
+Run on Linux/Ubuntu or WSL Ubuntu with GCC and GNU Make:
+
+```bash
+make -C engine/src/producer_consumer clean all
+make -C engine/src/producer_consumer test
+```
+
+Run the default 12 events, or choose a count and log file:
+
+```bash
+mkdir -p logs
+./engine/src/producer_consumer/producer_consumer
+./engine/src/producer_consumer/producer_consumer 25 logs/activity.log
+./engine/src/producer_consumer/producer_consumer --help
+```
+
+The event count must be an integer from 1 through 100000. The log path's parent directory must already exist and be writable. The included test target checks help output, a successful 25-event run, log row count, and rejection of invalid counts. This implements FR3's producer–consumer demonstration; it does not claim that FR1–FR8 are complete.
+
 ## Academic use
 
 This project is intended for operating-systems learning and demonstration. Document assumptions, tie-breaking rules, test inputs and observed behavior so the implementation can be explained during evaluation.
