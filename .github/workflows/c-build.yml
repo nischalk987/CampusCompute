@@ -6,6 +6,10 @@ on:
       - "engine/src/job_manager/**"
       - "engine/src/scheduler/**"
       - "engine/src/producer_consumer/**"
+      - "backend/**"
+      - "frontend/**"
+      - "README.md"
+      - "ARCHITECTURE.md"
       - ".github/workflows/c-build.yml"
   push:
     branches: [main]
