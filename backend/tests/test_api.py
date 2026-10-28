@@ -1,5 +1,10 @@
 from fastapi.testclient import TestClient
+from fastapi import HTTPException
+from pathlib import Path
+from unittest.mock import patch
+import subprocess
 
+from app import main
 from app.main import app
 
 client = TestClient(app)
@@ -28,6 +33,7 @@ def test_module_capabilities_are_explicit():
 def test_producer_rejects_count_out_of_range():
     assert client.post("/api/producer-consumer?event_count=0").status_code == 422
     assert client.post("/api/producer-consumer?event_count=100001").status_code == 422
+    assert client.post("/api/producer-consumer?event_count=abc").status_code == 422
 
 
 def test_producer_executes_real_c_module():
@@ -42,3 +48,40 @@ def test_producer_executes_real_c_module():
 
 def test_arbitrary_shell_endpoint_does_not_exist():
     assert client.post("/api/terminal?command=echo+hello").status_code == 404
+
+
+def test_execution_timeout_is_reported_as_gateway_timeout():
+    executable = Path("/tmp/fixed-engine-fixture")
+    with patch.object(main, "_executable", return_value=executable), \
+         patch.object(main, "_run_fixed", side_effect=HTTPException(504, "C module exceeded the execution time limit.")):
+        response = client.post("/api/producer-consumer?event_count=1")
+    assert response.status_code == 504
+    assert "time limit" in response.json()["detail"]
+
+
+def test_missing_engine_is_reported_as_unavailable():
+    with patch.object(main, "_executable", side_effect=HTTPException(503, "Unable to build module: gcc missing")):
+        response = client.post("/api/producer-consumer?event_count=1")
+    assert response.status_code == 503
+    assert "gcc missing" in response.json()["detail"]
+
+
+def test_nonzero_engine_exit_is_reported_actionably():
+    with patch.object(main, "_executable", return_value=Path("/tmp/fixed-engine-fixture")), \
+         patch.object(main, "_run_fixed", side_effect=HTTPException(422, "logger did not finish cleanly")):
+        response = client.post("/api/producer-consumer?event_count=1")
+    assert response.status_code == 422
+    assert "did not finish cleanly" in response.json()["detail"]
+
+
+def test_malformed_engine_log_is_not_returned_as_success():
+    fake_output = subprocess.CompletedProcess(
+        args=["producer_consumer"], returncode=0, stdout="Summary: produced=1 consumed=1 queued=0\n", stderr=""
+    )
+    with patch.object(main, "_executable", return_value=Path("/tmp/fixed-engine-fixture")), \
+         patch.object(main, "_run_fixed", return_value=fake_output), \
+         patch.object(main.tempfile, "TemporaryDirectory") as tempdir:
+        tempdir.return_value.__enter__.return_value = "/tmp/nonexistent-test-dir"
+        tempdir.return_value.__exit__.return_value = False
+        response = client.post("/api/producer-consumer?event_count=1")
+    assert response.status_code == 502
