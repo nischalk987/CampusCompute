@@ -27,7 +27,7 @@ static bool read_number(const char *prompt,long *out) {
     return true;
 }
 static void add_job(JobManager *m) {
-    char id[INPUT_SIZE],err[256]; long a,b,p;
+    char id[INPUT_SIZE],err[256]; long a = 0, b = 0, p = 0;
     if(!read_line("Job ID (letters/digits/_/-): ",id,sizeof(id))) return;
     if(!read_number("Arrival time (>= 0): ",&a)) return;
     if(!read_number("CPU burst (> 0): ",&b)) return;
@@ -41,7 +41,7 @@ static void change_status(JobManager *m,int action) {
     if(action==1) ok=job_manager_mark_ready(m,id,err,sizeof(err));
     else if(action==2) ok=job_manager_mark_running(m,id,err,sizeof(err));
     else {
-        long done;
+        long done = 0;
         if(!read_number("Completion time: ",&done)) return;
         if(done<0 || (unsigned long long)done>UINT_MAX) { fprintf(stderr,"Completion time must be between 0 and %u.\n",UINT_MAX); return; }
         ok=job_manager_mark_completed(m,id,(unsigned int)done,err,sizeof(err));
