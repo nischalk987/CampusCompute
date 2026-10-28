@@ -17,7 +17,7 @@ static bool parse_long_value(const char *s,long *out) {
     char *end=NULL; errno=0; long v=strtol(s,&end,10);
     if(errno || end==s) return false;
     while(*end==' '||*end=='\t'||*end=='\r') ++end;
-    if (*end != '\\0') return false;
+    if (*end != '\0') return false;
     *out = v;
     return true;
 }
