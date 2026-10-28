@@ -226,3 +226,19 @@ The test cases include a safe state, an unsafe state, invalid allocation values,
 ## Academic use
 
 This project is intended for operating-systems learning and demonstration. Document assumptions, tie-breaking rules, test inputs and observed behavior so the implementation can be explained during evaluation.
+
+## Dashboard UI (React + Vite)
+
+The optional CampusCompute dashboard is available under `frontend/`. It follows the approved white/soft-grey/indigo/teal palette and includes responsive navigation for all eight OS module areas.
+
+Run locally with Node.js 20+:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Create and preview a production build with `npm run build` and `npm run preview`. See [frontend/README.md](frontend/README.md) for scope and data-integrity details.
+
+**Important:** the dashboard is not yet connected to a local integration API. FR1, FR2, FR3 and FR5 screens provide clearly labelled browser previews and local C-engine commands. FR4, FR6 and FR7 are marked not implemented; the browser terminal does not execute commands. Project completion percentages display “Not tracked yet” until repository-backed status data is available. The C engine remains the authoritative source for assessment results.
