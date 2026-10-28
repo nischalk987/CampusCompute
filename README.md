@@ -175,6 +175,22 @@ mkdir -p logs
 
 The event count must be an integer from 1 through 100000. The log path's parent directory must already exist and be writable. The included test target checks help output, a successful 25-event run, log row count, and rejection of invalid counts. This implements FR3's producer–consumer demonstration; it does not claim that FR1–FR8 are complete.
 
+
+
+## FR1 — Job manager and process lifecycle
+
+Implemented C job manager files are under `engine/src/job_manager/`. The module validates unique job IDs, arrival times, CPU bursts, and priority values; stores job lifecycle state; and exposes a header for scheduler integration. Supported transitions are `CREATED -> READY -> RUNNING -> COMPLETED`. Invalid state transitions and invalid job data are rejected without modifying the job list.
+
+Build and run the FR1 module on Linux/Ubuntu or WSL Ubuntu:
+
+```bash
+make -C engine/src/job_manager clean all
+make -C engine/src/job_manager test
+./engine/src/job_manager/job_manager
+```
+
+The test target covers duplicate/malformed IDs, invalid numeric ranges, lifecycle transitions, completion-time validation, and a menu smoke test. This is an independently built module; the full FR1–FR8 integrated CLI is still being assembled.
+
 ## Academic use
 
 This project is intended for operating-systems learning and demonstration. Document assumptions, tie-breaking rules, test inputs and observed behavior so the implementation can be explained during evaluation.
