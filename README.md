@@ -207,6 +207,22 @@ make -C engine/src/scheduler test
 
 In the CLI, enter a job set once and select a policy or compare all three. Round Robin requires a positive integer quantum. Tie-breaking is documented in [the FR2 module README](engine/src/scheduler/README.md). This module is independently runnable and has not yet been integrated into one top-level FR1–FR8 executable.
 
+
+
+## FR5 — Banker's Algorithm
+
+The standalone Banker module is under `engine/src/banker/`. It accepts Available, Allocation, and Maximum inputs; derives `Need = Maximum - Allocation`; validates dimensions and Allocation ≤ Maximum; and reports SAFE with a computed sequence or UNSAFE when no complete safe sequence exists.
+
+Build and test on Linux/Ubuntu or WSL Ubuntu:
+
+```bash
+make -C engine/src/banker clean all
+make -C engine/src/banker test
+./engine/src/banker/banker
+```
+
+The test cases include a safe state, an unsafe state, invalid allocation values, and invalid matrix dimensions. This module is standalone and not yet part of a single top-level FR1–FR8 executable.
+
 ## Academic use
 
 This project is intended for operating-systems learning and demonstration. Document assumptions, tie-breaking rules, test inputs and observed behavior so the implementation can be explained during evaluation.

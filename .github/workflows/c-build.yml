@@ -24,3 +24,5 @@ jobs:
         run: make -C engine/src/scheduler clean test
       - name: Test FR3 producer-consumer
         run: make -C engine/src/producer_consumer clean test
+      - name: Test FR5 Banker's Algorithm
+        run: make -C engine/src/banker clean test
