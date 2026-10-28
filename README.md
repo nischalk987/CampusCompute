@@ -191,6 +191,22 @@ make -C engine/src/job_manager test
 
 The test target covers duplicate/malformed IDs, invalid numeric ranges, lifecycle transitions, completion-time validation, and a menu smoke test. This is an independently built module; the full FR1–FR8 integrated CLI is still being assembled.
 
+
+
+## FR2 — CPU scheduling
+
+The standalone scheduler is under `engine/src/scheduler/` and uses the FR1 job-management module. It implements FCFS, Round Robin, and non-preemptive Priority scheduling. Results include a computed execution timeline, completion time (CT), turnaround time (TAT), waiting time (WT), average TAT/WT, and makespan.
+
+Build and test on Linux/Ubuntu or WSL Ubuntu:
+
+```bash
+make -C engine/src/scheduler clean all
+make -C engine/src/scheduler test
+./engine/src/scheduler/cpu_scheduler
+```
+
+In the CLI, enter a job set once and select a policy or compare all three. Round Robin requires a positive integer quantum. Tie-breaking is documented in [the FR2 module README](engine/src/scheduler/README.md). This module is independently runnable and has not yet been integrated into one top-level FR1–FR8 executable.
+
 ## Academic use
 
 This project is intended for operating-systems learning and demonstration. Document assumptions, tie-breaking rules, test inputs and observed behavior so the implementation can be explained during evaluation.

@@ -1,0 +1,26 @@
+name: C module build and tests
+
+on:
+  pull_request:
+    paths:
+      - "engine/src/job_manager/**"
+      - "engine/src/scheduler/**"
+      - "engine/src/producer_consumer/**"
+      - ".github/workflows/c-build.yml"
+  push:
+    branches: [main]
+
+jobs:
+  c-modules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install compiler and make
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+      - name: Test FR1 job manager
+        run: make -C engine/src/job_manager clean test
+      - name: Test FR2 scheduler
+        run: make -C engine/src/scheduler clean test
+      - name: Test FR3 producer-consumer
+        run: make -C engine/src/producer_consumer clean test

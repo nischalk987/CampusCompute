@@ -38,10 +38,17 @@ static bool reserve_one(JobManager *m) {
     m->jobs=p; m->capacity=cap; return true;
 }
 void job_manager_init(JobManager *m) {
-    if (!m) return; m->jobs=NULL; m->count=0; m->capacity=0;
+    if (m == NULL) return;
+    m->jobs = NULL;
+    m->count = 0;
+    m->capacity = 0;
 }
 void job_manager_destroy(JobManager *m) {
-    if (!m) return; free(m->jobs); m->jobs=NULL; m->count=0; m->capacity=0;
+    if (m == NULL) return;
+    free(m->jobs);
+    m->jobs = NULL;
+    m->count = 0;
+    m->capacity = 0;
 }
 Job *job_manager_find(JobManager *m, const char *id) {
     if (!m || !id) return NULL;
