@@ -218,3 +218,67 @@ This is a proposed structure, not a verified inventory of current files. File na
 7. Add robust validation, error handling, tests and integrated CLI scenarios.
 8. Add the optional API and dashboard, then connect UI modules to real engine results.
 9. Capture genuine assessment evidence only after the relevant features work.
+
+## 9. Verified integration contract (current implementation)
+
+The diagrams above describe logical architecture. The following reflects the repository as it exists today.
+
+### Runtime topology
+
+\`\`\`mermaid
+flowchart LR
+    Browser[React dashboard :5173] -->|GET health / module inventory; POST producer events| API[FastAPI adapter 127.0.0.1:8000]
+    API -->|fixed argv, shell disabled| FR3[FR3 producer-consumer executable]
+    FR3 -->|temporary TSV log + stdout summary| API
+    API -->|JSON result / safe HTTP error| Browser
+    CLI[Direct Linux terminal] --> FR1[FR1 job manager CLI]
+    CLI --> FR2[FR2 scheduler CLI]
+    CLI --> FR3
+    CLI --> FR5[FR5 Banker's CLI]
+\`\`\`
+
+The adapter is optional. If it is stopped, the C module CLIs remain usable directly. Only FR3 currently has a non-interactive API operation because its executable accepts command-line arguments and a log path. FR1, FR2 and FR5 are implemented C modules, but their current entry points are interactive menus; this API does not fake or simulate their engine results. FR4, FR6, FR7 and the integrated FR8 dispatcher remain not implemented.
+
+### API contract
+
+| Method | Route | Request | Success response |
+|---|---|---|---|
+| GET | \`/health\` | None | Service status and module capability states |
+| GET | \`/api/modules\` | None | Module availability and API support |
+| POST | \`/api/producer-consumer?event_count=12\` | Integer query parameter, 1–100000 | \`status\`, \`source: "C engine"\`, requested count, parsed real event records, and C summary |
+
+Errors use FastAPI JSON error responses. Invalid counts return HTTP 422; missing GNU Make or build/start failures return HTTP 503; execution timeout returns HTTP 504. C stderr/stdout details are bounded before returning. No route accepts shell text, an executable path, a working directory or arbitrary arguments from the browser.
+
+### Ownership and lifecycle
+
+- The UI owns transient form state only. It is not persistent job state.
+- The C FR3 executable is the authority for producer/consumer synchronization and event creation.
+- The adapter validates the event count, builds the specific FR3 binary when it is missing, executes that fixed binary with an argv list and \`shell=False\`, parses the temporary TSV, and removes the temporary directory on exit.
+- Requests time out after 15 seconds; on timeout the request is reported as failed rather than returning a fabricated result.
+- Default CORS permits only \`http://127.0.0.1:5173\` and \`http://localhost:5173\`; the API binds to loopback in the documented command. This is a local coursework adapter, not an internet-facing service.
+- Build or test the C engine independently. The API must never replace the direct CLI contract.
+
+### Reproducible development commands
+
+From the repository root in Ubuntu/WSL:
+
+\`\`\`bash
+# C module checks
+make -C engine/src/job_manager clean test
+make -C engine/src/scheduler clean test
+make -C engine/src/producer_consumer clean test
+make -C engine/src/banker clean test
+
+# Local adapter
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r backend/requirements.txt
+PYTHONPATH=backend pytest -q backend/tests
+uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+\`\`\`
+
+In a second terminal, run \`cd frontend && npm install && npm run dev\`. Test API availability at \`http://127.0.0.1:8000/health\` and inspect the generated OpenAPI docs at \`http://127.0.0.1:8000/docs\`.
+
+### Integration work still required
+
+To make FR1, FR2 and FR5 dashboard actions call the real engine, refactor their existing C core APIs behind a non-interactive structured interface (JSON or another versioned format) rather than piping prompts into interactive menus. When FR4, FR6, FR7 and FR8 are implemented, add each operation to the explicit allowlist, define strict schemas and tests, then update \`/api/modules\`. Until then, dashboard labels must preserve the current unavailable/CLI-only state.
