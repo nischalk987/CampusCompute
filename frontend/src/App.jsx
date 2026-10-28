@@ -205,10 +205,10 @@ function Overview({ setPage, modules }) {
   const ready = modules.filter(m=>m.status==='Implemented').length;
   return <div className="page-enter">
     <div className="welcome-row"><div><div className="eyebrow">WEDNESDAY, OCTOBER 28, 2026 <span className="eyebrow-sep">/</span> OS LABORATORY</div><h1>System overview<span className="title-period">.</span></h1><p className="page-lead">Explore your operating-systems experiments from one workspace.</p></div><button className="button button-primary" onClick={()=>setPage('terminal')}><Terminal size={16}/> Open terminal guide <ArrowRight size={15}/></button></div>
-    <div className="status-banner"><div className="status-banner-icon"><Activity size={19}/></div><div className="status-banner-copy"><strong>Local engine connection needed</strong><span>Module UIs are available; connect the C engine/API to execute authoritative runs from this dashboard.</span></div><Badge tone="warning">Not connected</Badge></div>
+    <div className="status-banner"><div className="status-banner-icon"><Activity size={19}/></div><div className="status-banner-copy"><strong>{apiStatus === "connected" ? "Local API connected" : "Local engine connection needed"}</strong><span>{apiStatus === "connected" ? "FR3 Producer–Consumer can run against the actual C engine. Other modules are enabled only where the API reports support." : "Start the optional localhost API to run the supported FR3 operation. Other modules remain CLI-only or unavailable."}</span></div><Badge tone="warning">Not connected</Badge></div>
     <div className="stats-grid">
-      <StatCard icon={Layers3} label="Jobs in preview" value="3" foot="Local example data · editable" tone="indigo" />
-      <StatCard icon={Cpu} label="Scheduling policies" value="3" foot="FCFS, Round Robin, Priority" tone="teal" />
+      <StatCard icon={Layers3} label="Jobs in preview" value="3" foot="Sample UI state · not engine data" tone="indigo" />
+      <StatCard icon={Cpu} label="Scheduling policies" value="3" foot="C CLI available · API not connected" tone="teal" />
       <StatCard icon={Activity} label="Concurrency module" value="Ready" foot="C producer–consumer logger" tone="blue" />
       <StatCard icon={ShieldCheck} label="Resource safety" value="Ready" foot="Banker's Algorithm module" tone="purple" />
     </div>
