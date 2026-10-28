@@ -17,7 +17,9 @@ static bool parse_long_value(const char *s,long *out) {
     char *end=NULL; errno=0; long v=strtol(s,&end,10);
     if(errno || end==s) return false;
     while(*end==' '||*end=='\t'||*end=='\r') ++end;
-    if(*end) return false; *out=v; return true;
+    if (*end != '\\0') return false;
+    *out = v;
+    return true;
 }
 static bool read_number(const char *prompt,long *out) {
     char buf[INPUT_SIZE]; if(!read_line(prompt,buf,sizeof(buf))) return false;
