@@ -8,8 +8,12 @@ static BankerState safe_case(void) {
     s.available[0]=3; s.available[1]=3; s.available[2]=2;
     const uint32_t allocation[5][3]={{0,1,0},{2,0,0},{3,0,2},{2,1,1},{0,0,2}};
     const uint32_t maximum[5][3]={{7,5,3},{3,2,2},{9,0,2},{2,2,2},{4,3,3}};
-    memcpy(s.allocation,allocation,sizeof(allocation));
-    memcpy(s.maximum,maximum,sizeof(maximum));
+    for (size_t p=0; p<s.process_count; ++p) {
+        for (size_t r=0; r<s.resource_count; ++r) {
+            s.allocation[p][r] = allocation[p][r];
+            s.maximum[p][r] = maximum[p][r];
+        }
+    }
     return s;
 }
 static void test_safe_state(void) {
