@@ -384,6 +384,99 @@ The C engine uses POSIX/Linux features. Build and run it in Ubuntu/WSL.""", "std
             if depth <= 4:
                 output.append("  " * depth + path.name + ("/" if path.is_dir() else ""))
         return {"stdout": "\n".join(output) + "\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command == "wc":
+        if len(argv) != 2:
+            return {"stdout": "", "stderr": "Usage: wc <file>\n", "exit_code": 2, "cwd": payload.cwd}
+        path = (cwd / argv[1]).resolve()
+        try:
+            path.relative_to(REPO_ROOT.resolve())
+        except ValueError as exc:
+            raise HTTPException(400, "Paths must stay inside the repository.") from exc
+        if not path.is_file():
+            return {"stdout": "", "stderr": f"File not found: {argv[1]}\n", "exit_code": 1, "cwd": payload.cwd}
+        raw = path.read_text(encoding="utf-8", errors="replace")
+        return {"stdout": f"{len(raw.splitlines())} {len(raw.split())} {len(raw.encode('utf-8'))} {argv[1]}\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command == "grep":
+        if len(argv) < 3:
+            return {"stdout": "", "stderr": "Usage: grep <text> <file>\n", "exit_code": 2, "cwd": payload.cwd}
+        path = (cwd / argv[2]).resolve()
+        try:
+            path.relative_to(REPO_ROOT.resolve())
+        except ValueError as exc:
+            raise HTTPException(400, "Paths must stay inside the repository.") from exc
+        if not path.is_file():
+            return {"stdout": "", "stderr": f"File not found: {argv[2]}\n", "exit_code": 1, "cwd": payload.cwd}
+        matches = [f"{line_no}: {line}" for line_no, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1) if argv[1] in line]
+        return {"stdout": ("\n".join(matches) + "\n") if matches else "", "stderr": "", "exit_code": 0 if matches else 1, "cwd": payload.cwd}
+    if command == "find":
+        start = "."
+        pattern = "*"
+        args = argv[1:]
+        if args and args[0] != "-name":
+            start = args.pop(0)
+        if len(args) == 2 and args[0] == "-name":
+            pattern = args[1]
+        elif args:
+            return {"stdout": "", "stderr": "Usage: find [path] [-name pattern]\n", "exit_code": 2, "cwd": payload.cwd}
+        root = (cwd / start).resolve()
+        try:
+            root.relative_to(REPO_ROOT.resolve())
+        except ValueError as exc:
+            raise HTTPException(400, "Paths must stay inside the repository.") from exc
+        if not root.exists():
+            return {"stdout": "", "stderr": f"Path not found: {start}\n", "exit_code": 1, "cwd": payload.cwd}
+        items = root.rglob(pattern) if root.is_dir() else [root]
+        found = []
+        for path in items:
+            found.append(path.relative_to(REPO_ROOT).as_posix())
+            if len(found) >= 500:
+                found.append("... output capped at 500 paths")
+                break
+        return {"stdout": ("\n".join(found) + "\n") if found else "(no matches)\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command == "date":
+        from datetime import datetime
+        return {"stdout": datetime.now().astimezone().isoformat(sep=" ", timespec="seconds") + "\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command == "whoami":
+        username = os.getenv("USERNAME") or os.getenv("USER") or "unknown"
+        return {"stdout": username + "\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command == "uname":
+        import platform
+        return {"stdout": f"{platform.system()} {platform.release()} {platform.machine()}\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command == "which":
+        if len(argv) != 2:
+            return {"stdout": "", "stderr": "Usage: which <program>\n", "exit_code": 2, "cwd": payload.cwd}
+        found = shutil.which(argv[1])
+        return {"stdout": (found + "\n") if found else "", "stderr": "" if found else f"{argv[1]} not found on PATH\n", "exit_code": 0 if found else 1, "cwd": payload.cwd}
+    if command in {"mkdir", "touch", "cp", "mv"}:
+        try:
+            if command == "mkdir":
+                if len(argv) != 2:
+                    return {"stdout": "", "stderr": "Usage: mkdir <directory>\n", "exit_code": 2, "cwd": payload.cwd}
+                (cwd / argv[1]).resolve().mkdir()
+                (cwd / argv[1]).resolve().relative_to(REPO_ROOT.resolve())
+            elif command == "touch":
+                if len(argv) != 2:
+                    return {"stdout": "", "stderr": "Usage: touch <file>\n", "exit_code": 2, "cwd": payload.cwd}
+                path = (cwd / argv[1]).resolve()
+                path.relative_to(REPO_ROOT.resolve())
+                path.touch(exist_ok=True)
+            else:
+                if len(argv) != 3:
+                    return {"stdout": "", "stderr": f"Usage: {command} <source> <destination>\n", "exit_code": 2, "cwd": payload.cwd}
+                source = (cwd / argv[1]).resolve()
+                destination = (cwd / argv[2]).resolve()
+                source.relative_to(REPO_ROOT.resolve())
+                destination.relative_to(REPO_ROOT.resolve())
+                if not source.is_file():
+                    return {"stdout": "", "stderr": "Source file not found; directory operations are disabled.\n", "exit_code": 1, "cwd": payload.cwd}
+                if command == "cp":
+                    shutil.copy2(source, destination)
+                else:
+                    source.rename(destination)
+        except (OSError, ValueError) as exc:
+            return {"stdout": "", "stderr": str(exc) + "\n", "exit_code": 1, "cwd": payload.cwd}
+        return {"stdout": "completed\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+
     executable: str
     if command.startswith("./") or command.startswith(".\\"):
         target = (cwd / command).resolve()
