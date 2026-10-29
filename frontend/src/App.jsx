@@ -280,79 +280,119 @@ function TerminalPage({notify}) {
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [lines, setLines] = useState([
-    {type:'system', text:'CampusCompute interactive terminal · simulator mode'},
-    {type:'muted', text:'This terminal runs safe demo commands in the browser. It does not execute commands on your computer.'},
-    {type:'success', text:'Type "help" to see supported commands.'}
+    {type:'system', text:'CampusCompute terminal · local backend'},
+    {type:'muted', text:'Connecting to the local command runner at http://127.0.0.1:8000 …'},
+    {type:'success', text:'Type "help" to see commands. This terminal executes real commands through the local API.'}
   ]);
-  const commands = [
-    'make -C engine/src/job_manager clean test',
-    'make -C engine/src/scheduler clean test',
-    'make -C engine/src/producer_consumer clean test',
-    'make -C engine/src/banker clean test'
-  ];
-  function runCommand(raw) {
-    const cmd = raw.trim();
-    if (!cmd) return;
-    setHistory(prev => [cmd, ...prev].slice(0, 80));
-    setHistoryIndex(-1);
-    if (cmd === 'clear' || cmd === 'cls') { setLines([]); setInput(''); return; }
-    const out = (type, text) => setLines(prev => [...prev, {type:'prompt',text:'student@campuscompute:~$ ' + cmd},{type,text}]);
-    switch (cmd) {
-      case 'help':
-        out('output', 'Available commands:\n  help       Show this help\n  clear      Clear terminal output\n  pwd        Show simulated repository path\n  ls         List project folders\n  whoami     Show current demo user\n  date       Show simulated system date\n  uname      Show simulated OS environment\n  modules    List CampusCompute modules\n  status     Show module implementation status\n  jobs       Show sample job records\n  ps         Show sample process table\n  make test  Show available C-engine test targets');
-        break;
-      case 'pwd': out('success', '/home/student/CampusCompute'); break;
-      case 'ls': out('output', 'README.md  backend/  docs/  engine/  frontend/  logs/  Makefile'); break;
-      case 'whoami': out('output', 'student'); break;
-      case 'date': out('output', 'CampusCompute demo environment · system date is not queried by this simulator'); break;
-      case 'uname': out('output', 'Linux campuscompute 6.x (simulated Ubuntu / WSL environment)'); break;
-      case 'modules':
-        out('output', 'FR1  Jobs & Processes       available in C engine\nFR2  CPU Scheduling         available in C engine\nFR3  Producer–Consumer      available in C engine\nFR5  Banker’s Algorithm     available in C engine\nFR4  Shared Memory IPC      not implemented\nFR6  Worker Failure         not implemented\nFR7  Resource Limits        not implemented\nFR8  Integrated CLI         not implemented');
-        break;
-      case 'status':
-        out('output', 'Frontend: running in browser\nTerminal: simulator mode\nShell execution: disabled\nC engine API: check connection on the Producer–Consumer page');
-        break;
-      case 'jobs':
-        out('output', 'JOB ID   ARRIVAL   BURST   PRIORITY\nP1       0         5       2\nP2       1         3       1\nP3       2         7       3\n\nThese are sample UI records, not live OS processes.');
-        break;
-      case 'ps':
-        out('output', 'PID    PROCESS\n1001   campuscompute-ui (demo)\n1002   terminal-simulator (demo)\n\nThis is simulated output; it is not your operating system process list.');
-        break;
-      case 'make test':
-        out('output', 'Available real build targets (run these in Ubuntu/WSL from the repository root):\n' + commands.join('\n'));
-        break;
-      default:
-        if (commands.includes(cmd)) {
-          out('warning', 'Build command not executed in browser.\nOpen Ubuntu/WSL at the CampusCompute repository root and run:\n' + cmd);
-        } else {
-          out('error', 'Command not found in simulator: ' + cmd + '\nType "help" to see supported commands. Arbitrary shell commands are intentionally disabled.');
+  const [cwd, setCwd] = useState('.');
+  const [busy, setBusy] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const apiBase = 'http://127.0.0.1:8000';
+  const quickCommands = ['help', 'pwd', 'ls', 'git status', 'make -C engine/src/scheduler clean test'];
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(apiBase + '/health')
+      .then(response => response.ok ? response.json() : Promise.reject(new Error('API unavailable')))
+      .then(() => {
+        if (!cancelled) {
+          setConnected(true);
+          setLines(prev => [...prev, {type:'success', text:'Local API connected. Commands will run in the repository workspace.'}]);
         }
-    }
-    setInput('');
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setConnected(false);
+          setLines(prev => [...prev, {type:'warning', text:'Local API is not running. Start it from Ubuntu/WSL using the instructions below, then try again.'}]);
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  function appendCommand(cmd, output, type='output') {
+    setLines(prev => [
+      ...prev,
+      {type:'prompt', text:'student@campuscompute:' + (cwd === '.' ? '~' : '~/' + cwd) + '$ ' + cmd},
+      ...(output ? [{type, text:output}] : [])
+    ]);
   }
+
+  async function runCommand(raw) {
+    const cmd = raw.trim();
+    if (!cmd || busy) return;
+    setHistory(prev => [cmd, ...prev].slice(0, 100));
+    setHistoryIndex(-1);
+    setInput('');
+    if (cmd === 'clear' || cmd === 'cls') { setLines([]); return; }
+    if (cmd === 'help') {
+      appendCommand(cmd, 'Enabled commands include:\n  pwd, ls, cd <directory>\n  cat, head, tail, grep, find, wc, sort, uniq, cut, tr\n  git, make, gcc, g++, python3, pytest\n  mkdir, touch, cp, mv, file, tree, du, df, stat\n  date, uname, whoami, id, which, echo, printf\n  clear / cls\n\nRun one command at a time. Shell pipes, redirection, chaining and commands outside the allowlist are disabled. Paths must remain inside the repository.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await fetch(apiBase + '/api/terminal/execute', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({command:cmd, cwd})
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || 'Terminal request failed (' + response.status + ')');
+      setConnected(true);
+      if (data.cwd !== undefined) setCwd(data.cwd);
+      const output = [data.stdout || '', data.stderr || ''].filter(Boolean).join(data.stdout && data.stderr ? '\\n' : '');
+      appendCommand(cmd, output || (data.exit_code === 0 ? '(completed with no output)' : 'Command failed with exit code ' + data.exit_code), data.exit_code === 0 ? 'output' : 'error');
+      if (data.exit_code !== 0) setLines(prev => [...prev, {type:'warning', text:'Exit code: ' + data.exit_code}]);
+    } catch (error) {
+      setConnected(false);
+      appendCommand(cmd, error.message + '\\nMake sure the local backend is running and the command is supported.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function onKeyDown(event) {
     if (event.key === 'Enter') { event.preventDefault(); runCommand(input); }
-    else if (event.key === 'ArrowUp') { event.preventDefault(); if (history.length) { const next = Math.min(historyIndex + 1, history.length - 1); setHistoryIndex(next); setInput(history[next]); } }
-    else if (event.key === 'ArrowDown') { event.preventDefault(); if (historyIndex > 0) { const next = historyIndex - 1; setHistoryIndex(next); setInput(history[next]); } else { setHistoryIndex(-1); setInput(''); } }
-    else if (event.ctrlKey && event.key.toLowerCase() === 'l') { event.preventDefault(); setLines([]); }
+    else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (history.length) {
+        const next = Math.min(historyIndex + 1, history.length - 1);
+        setHistoryIndex(next); setInput(history[next]);
+      }
+    } else if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (historyIndex > 0) {
+        const next = historyIndex - 1; setHistoryIndex(next); setInput(history[next]);
+      } else { setHistoryIndex(-1); setInput(''); }
+    } else if (event.ctrlKey && event.key.toLowerCase() === 'l') {
+      event.preventDefault(); setLines([]);
+    }
   }
-  const quickCommands = ['help','modules','status','jobs','make test'];
+
   return <div className="page-enter terminal-page">
-    <PageHeading eyebrow="WORKSPACE / CLI" title="Terminal" subtitle="An interactive command-line workspace for exploring CampusCompute modules."/>
-    <div className="terminal-notice"><AlertTriangle size={17}/><div><strong>Browser simulator — not a real system shell</strong><p>Commands like <code>help</code>, <code>modules</code> and <code>jobs</code> run in this page. Build commands are shown for Ubuntu/WSL; arbitrary shell execution is disabled for safety.</p></div></div>
-    <section className="terminal-window" aria-label="Interactive terminal">
-      <div className="terminal-titlebar"><div className="terminal-lights"><span/><span/><span/></div><div className="terminal-title"><Terminal size={14}/> campuscompute — terminal</div><button className="terminal-clear" onClick={()=>setLines([])} title="Clear terminal">Clear</button></div>
+    <PageHeading eyebrow="WORKSPACE / CLI" title="Terminal" subtitle="Run real commands against your local CampusCompute repository."/>
+    <div className={connected ? 'terminal-notice terminal-notice--connected' : 'terminal-notice'}>
+      {connected ? <Check size={17}/> : <AlertTriangle size={17}/>}
+      <div><strong>{connected ? 'Local terminal connected' : 'Local backend required'}</strong>
+        <p>{connected ? 'Commands run on the machine where the CampusCompute backend is running, inside the repository workspace.' : <>Start the API from Ubuntu/WSL: <code>uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000</code></>}</p>
+        <p>For safety, the runner uses an allowlist, does not invoke a shell, blocks shell operators and restricts the working directory to this repository.</p>
+      </div>
+    </div>
+    <section className="terminal-window" aria-label="Local interactive terminal">
+      <div className="terminal-titlebar"><div className="terminal-lights"><span/><span/><span/></div><div className="terminal-title"><Terminal size={14}/> campuscompute — local terminal</div><button className="terminal-clear" onClick={()=>setLines([])} title="Clear terminal">Clear</button></div>
       <div className="terminal-screen" onClick={()=>document.getElementById('terminal-command')?.focus()}>
         {lines.map((line,index)=><pre className={'terminal-line terminal-line--' + line.type} key={index}>{line.text}</pre>)}
         <form className="terminal-input-row" onSubmit={event=>{event.preventDefault();runCommand(input);}}>
-          <span className="terminal-prompt">student@campuscompute:~$</span>
-          <input id="terminal-command" aria-label="Terminal command" autoComplete="off" spellCheck="false" value={input} onChange={event=>setInput(event.target.value)} onKeyDown={onKeyDown} placeholder="type a command…" />
-          <button type="submit" className="terminal-run" disabled={!input.trim()}><Play size={14}/> Run</button>
+          <span className="terminal-prompt">student@campuscompute:{cwd === '.' ? '~' : '~/' + cwd}$</span>
+          <input id="terminal-command" aria-label="Terminal command" autoComplete="off" spellCheck="false" value={input} onChange={event=>setInput(event.target.value)} onKeyDown={onKeyDown} placeholder={busy ? 'command running…' : 'type a command…'} disabled={busy}/>
+          <button type="submit" className="terminal-run" disabled={!input.trim()||busy}>{busy?<RefreshCw size={14}/>:<Play size={14}/>} {busy?'Running':'Run'}</button>
         </form>
       </div>
-      <div className="terminal-footer"><span><i/> simulator ready</span><span>↑/↓ history · Enter run · Ctrl+L clear</span></div>
+      <div className="terminal-footer"><span><i className={connected?'':'terminal-dot--offline'}/>{connected?'connected · local execution':'waiting for backend'}</span><span>↑/↓ history · Enter run · Ctrl+L clear</span></div>
     </section>
-    <section className="panel terminal-quick-panel"><PanelTitle eyebrow="QUICK COMMANDS" title="Try a command" subtitle="Click a shortcut to run it in the terminal above."/><div className="terminal-quick-actions">{quickCommands.map(cmd=><button key={cmd} className="terminal-chip" onClick={()=>runCommand(cmd)}><code>{cmd}</code><ArrowRight size={13}/></button>)}</div></section>
-    <section className="panel"><PanelTitle eyebrow="REAL C ENGINE" title="Run actual commands in Ubuntu / WSL" subtitle="These commands must run in your local Linux terminal, not in this browser simulator."/><div className="command-list">{commands.map(cmd=><CodeLine key={cmd} copy={()=>{navigator.clipboard?.writeText(cmd);notify('Command copied when clipboard permission is available.');}}>{cmd}</CodeLine>)}</div><div className="info-note"><CircleHelp size={15}/> To execute real commands inside the website, CampusCompute needs a separate backend terminal service with strict command allowlisting. This UI does not claim to run them.</div></section>
+    <section className="panel terminal-quick-panel"><PanelTitle eyebrow="QUICK COMMANDS" title="Try a command" subtitle="Shortcuts execute through the local backend."/><div className="terminal-quick-actions">{quickCommands.map(cmd=><button key={cmd} className="terminal-chip" onClick={()=>runCommand(cmd)} disabled={busy}><code>{cmd}</code><ArrowRight size={13}/></button>)}</div></section>
+    <section className="panel"><PanelTitle eyebrow="START THE BACKEND" title="One-time setup" subtitle="Run these commands from the repository root in Ubuntu/WSL."/>
+      <div className="command-list"><CodeLine>python3 -m venv .venv</CodeLine><CodeLine>source .venv/bin/activate</CodeLine><CodeLine>pip install -r backend/requirements.txt</CodeLine><CodeLine>uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000</CodeLine></div>
+      <div className="info-note"><CircleHelp size={15}/> Keep the backend bound to 127.0.0.1. This is a local development terminal, not a public shell service. Commands run on the backend host, so use Ubuntu/WSL to run Linux C-engine commands.</div>
+    </section>
   </div>;
 }
