@@ -236,13 +236,83 @@ function ProducerPage({count,setCount,notify,apiBase,setApiBase,apiStatus,events
   return <div className="page-enter"><PageHeading eyebrow="CONCURRENCY / FR3" title="Producer–Consumer" subtitle="Execute the real POSIX-threaded C logger through the localhost API and inspect its event log."/><div className="status-banner status-banner--teal"><div className="status-banner-icon"><Activity size={19}/></div><div className="status-banner-copy"><strong>POSIX producer–consumer module is implemented</strong><span>The adapter invokes the fixed C executable, parses the temporary TSV log, and returns those real events.</span></div><Badge tone={apiStatus==='connected'?'success':apiStatus==='checking'?'warning':'danger'}>{apiStatus==='connected'?'API connected':apiStatus==='checking'?'Checking API':'API disconnected'}</Badge></div><div className="content-grid"><section className="panel"><PanelTitle eyebrow="LOCAL RUN CONFIGURATION" title="Run C engine" subtitle="Requests are sent only to the configured local API origin."/><div className="form-stack"><Field label="API base URL"><input value={apiBase} onChange={e=>setApiBase(e.target.value.trim())} placeholder="http://127.0.0.1:8000" /></Field><Field label="Number of events (1–100000)"><input type="number" min="1" max="100000" step="1" value={count} onChange={e=>setCount(e.target.value)}/></Field><button className="button button-primary button-full" disabled={!validCount||apiStatus!=='connected'||busy} onClick={runApi}>{busy?<RefreshCw size={16}/>:<Play size={16}/>} {busy?'Running C module…':'Run real C module'}</button>{apiStatus!=='connected'&&<p className="footnote">Start the adapter from the repository root: <code>uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000</code></p>}</div><div className="info-note"><CircleHelp size={15}/> The API validates this count and calls the fixed executable with shell execution disabled. It does not run browser-supplied commands.</div></section><section className="panel"><PanelTitle eyebrow="REAL ENGINE OUTPUT" title="Runtime summary" subtitle={events.length?'Returned by the C executable':'No event log loaded yet.'} action={events.length?<Badge tone="success">C engine</Badge>:null}/>{summary&&<div className="summary-strip"><Check size={16}/><code>{summary}</code></div>}{events.length?<div className="table-scroll"><table><thead><tr><th>Time</th><th>Sequence</th><th>Message</th></tr></thead><tbody>{events.map(event=><tr key={event.sequence}><td>{event.timestamp}</td><td>{event.sequence}</td><td>{event.message}</td></tr>)}</tbody></table></div>:<EmptyState icon={FileText} title="No runtime events loaded" text="When the API is connected, run a batch to display real event-log rows here."/>}</section></div><section className="panel"><PanelTitle eyebrow="BUILD & TEST" title="Direct CLI fallback" subtitle="The engine stays usable when the dashboard or API is stopped."/><CodeLine>make -C engine/src/producer_consumer clean test</CodeLine><CodeLine>mkdir -p logs</CodeLine><CodeLine>./engine/src/producer_consumer/producer_consumer {count} logs/activity.log</CodeLine></section></div>;
 }
 function TerminalPage({notify}) {
-  const commands=['make -C engine/src/job_manager clean test','make -C engine/src/scheduler clean test','make -C engine/src/producer_consumer clean test','make -C engine/src/banker clean test'];
-  return <div className="page-enter"><PageHeading eyebrow="WORKSPACE / CLI" title="Terminal guide" subtitle="Use your Ubuntu/WSL terminal to compile and run the actual C programs."/><div className="status-banner"><div className="status-banner-icon"><Terminal size={19}/></div><div className="status-banner-copy"><strong>Browser terminal execution is disabled</strong><span>This guide copies commands; it does not run shell commands inside the browser or server.</span></div><Badge tone="warning">Local terminal</Badge></div><section className="panel"><PanelTitle eyebrow="REPOSITORY ROOT" title="Build and test modules" subtitle="Run these from the CampusCompute repository directory."/><div className="command-list">{commands.map(cmd=><CodeLine key={cmd} copy={() => {navigator.clipboard?.writeText(cmd);notify('Command copied when clipboard permission is available.');}}>{cmd}</CodeLine>)}</div><div className="info-note"><AlertTriangle size={15}/> FR4, FR6, FR7 and the integrated FR8 CLI are not yet implemented. Their commands are intentionally not listed.</div></section><section className="panel"><PanelTitle eyebrow="NEXT STEPS" title="Use a real Linux terminal"/><ol className="terminal-steps"><li><span>1</span><div><strong>Open Ubuntu / WSL</strong><p>Navigate to the cloned repository directory.</p></div></li><li><span>2</span><div><strong>Pull the latest main</strong><p>Fetch the reviewed modules from GitHub before building.</p><CodeLine>git pull origin main</CodeLine></div></li><li><span>3</span><div><strong>Capture genuine evidence</strong><p>Use actual compiler and program output for screenshots; do not use the dashboard previews as runtime proof.</p></div></li></ol></section></div>;
+  const [input, setInput] = useState('');
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [lines, setLines] = useState([
+    {type:'system', text:'CampusCompute interactive terminal · simulator mode'},
+    {type:'muted', text:'This terminal runs safe demo commands in the browser. It does not execute commands on your computer.'},
+    {type:'success', text:'Type "help" to see supported commands.'}
+  ]);
+  const commands = [
+    'make -C engine/src/job_manager clean test',
+    'make -C engine/src/scheduler clean test',
+    'make -C engine/src/producer_consumer clean test',
+    'make -C engine/src/banker clean test'
+  ];
+  function runCommand(raw) {
+    const cmd = raw.trim();
+    if (!cmd) return;
+    setHistory(prev => [cmd, ...prev].slice(0, 80));
+    setHistoryIndex(-1);
+    if (cmd === 'clear' || cmd === 'cls') { setLines([]); setInput(''); return; }
+    const out = (type, text) => setLines(prev => [...prev, {type:'prompt',text:'student@campuscompute:~$ ' + cmd},{type,text}]);
+    switch (cmd) {
+      case 'help':
+        out('output', 'Available commands:\n  help       Show this help\n  clear      Clear terminal output\n  pwd        Show simulated repository path\n  ls         List project folders\n  whoami     Show current demo user\n  date       Show simulated system date\n  uname      Show simulated OS environment\n  modules    List CampusCompute modules\n  status     Show module implementation status\n  jobs       Show sample job records\n  ps         Show sample process table\n  make test  Show available C-engine test targets');
+        break;
+      case 'pwd': out('success', '/home/student/CampusCompute'); break;
+      case 'ls': out('output', 'README.md  backend/  docs/  engine/  frontend/  logs/  Makefile'); break;
+      case 'whoami': out('output', 'student'); break;
+      case 'date': out('output', 'CampusCompute demo environment · system date is not queried by this simulator'); break;
+      case 'uname': out('output', 'Linux campuscompute 6.x (simulated Ubuntu / WSL environment)'); break;
+      case 'modules':
+        out('output', 'FR1  Jobs & Processes       available in C engine\nFR2  CPU Scheduling         available in C engine\nFR3  Producer–Consumer      available in C engine\nFR5  Banker’s Algorithm     available in C engine\nFR4  Shared Memory IPC      not implemented\nFR6  Worker Failure         not implemented\nFR7  Resource Limits        not implemented\nFR8  Integrated CLI         not implemented');
+        break;
+      case 'status':
+        out('output', 'Frontend: running in browser\nTerminal: simulator mode\nShell execution: disabled\nC engine API: check connection on the Producer–Consumer page');
+        break;
+      case 'jobs':
+        out('output', 'JOB ID   ARRIVAL   BURST   PRIORITY\nP1       0         5       2\nP2       1         3       1\nP3       2         7       3\n\nThese are sample UI records, not live OS processes.');
+        break;
+      case 'ps':
+        out('output', 'PID    PROCESS\n1001   campuscompute-ui (demo)\n1002   terminal-simulator (demo)\n\nThis is simulated output; it is not your operating system process list.');
+        break;
+      case 'make test':
+        out('output', 'Available real build targets (run these in Ubuntu/WSL from the repository root):\n' + commands.join('\n'));
+        break;
+      default:
+        if (commands.includes(cmd)) {
+          out('warning', 'Build command not executed in browser.\nOpen Ubuntu/WSL at the CampusCompute repository root and run:\n' + cmd);
+        } else {
+          out('error', 'Command not found in simulator: ' + cmd + '\nType "help" to see supported commands. Arbitrary shell commands are intentionally disabled.');
+        }
+    }
+    setInput('');
+  }
+  function onKeyDown(event) {
+    if (event.key === 'Enter') { event.preventDefault(); runCommand(input); }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); if (history.length) { const next = Math.min(historyIndex + 1, history.length - 1); setHistoryIndex(next); setInput(history[next]); } }
+    else if (event.key === 'ArrowDown') { event.preventDefault(); if (historyIndex > 0) { const next = historyIndex - 1; setHistoryIndex(next); setInput(history[next]); } else { setHistoryIndex(-1); setInput(''); } }
+    else if (event.ctrlKey && event.key.toLowerCase() === 'l') { event.preventDefault(); setLines([]); }
+  }
+  const quickCommands = ['help','modules','status','jobs','make test'];
+  return <div className="page-enter terminal-page">
+    <PageHeading eyebrow="WORKSPACE / CLI" title="Terminal" subtitle="An interactive command-line workspace for exploring CampusCompute modules."/>
+    <div className="terminal-notice"><AlertTriangle size={17}/><div><strong>Browser simulator — not a real system shell</strong><p>Commands like <code>help</code>, <code>modules</code> and <code>jobs</code> run in this page. Build commands are shown for Ubuntu/WSL; arbitrary shell execution is disabled for safety.</p></div></div>
+    <section className="terminal-window" aria-label="Interactive terminal">
+      <div className="terminal-titlebar"><div className="terminal-lights"><span/><span/><span/></div><div className="terminal-title"><Terminal size={14}/> campuscompute — terminal</div><button className="terminal-clear" onClick={()=>setLines([])} title="Clear terminal">Clear</button></div>
+      <div className="terminal-screen" onClick={()=>document.getElementById('terminal-command')?.focus()}>
+        {lines.map((line,index)=><pre className={'terminal-line terminal-line--' + line.type} key={index}>{line.text}</pre>)}
+        <form className="terminal-input-row" onSubmit={event=>{event.preventDefault();runCommand(input);}}>
+          <span className="terminal-prompt">student@campuscompute:~$</span>
+          <input id="terminal-command" aria-label="Terminal command" autoComplete="off" spellCheck="false" value={input} onChange={event=>setInput(event.target.value)} onKeyDown={onKeyDown} placeholder="type a command…" />
+          <button type="submit" className="terminal-run" disabled={!input.trim()}><Play size={14}/> Run</button>
+        </form>
+      </div>
+      <div className="terminal-footer"><span><i/> simulator ready</span><span>↑/↓ history · Enter run · Ctrl+L clear</span></div>
+    </section>
+    <section className="panel terminal-quick-panel"><PanelTitle eyebrow="QUICK COMMANDS" title="Try a command" subtitle="Click a shortcut to run it in the terminal above."/><div className="terminal-quick-actions">{quickCommands.map(cmd=><button key={cmd} className="terminal-chip" onClick={()=>runCommand(cmd)}><code>{cmd}</code><ArrowRight size={13}/></button>)}</div></section>
+    <section className="panel"><PanelTitle eyebrow="REAL C ENGINE" title="Run actual commands in Ubuntu / WSL" subtitle="These commands must run in your local Linux terminal, not in this browser simulator."/><div className="command-list">{commands.map(cmd=><CodeLine key={cmd} copy={()=>{navigator.clipboard?.writeText(cmd);notify('Command copied when clipboard permission is available.');}}>{cmd}</CodeLine>)}</div><div className="info-note"><CircleHelp size={15}/> To execute real commands inside the website, CampusCompute needs a separate backend terminal service with strict command allowlisting. This UI does not claim to run them.</div></section>
+  </div>;
 }
-function UnavailablePage({item}) {
-  const Icon=item?.icon||LockKeyhole;
-  return <div className="page-enter"><PageHeading eyebrow={item?.group?.toUpperCase()||'MODULE'} title={item?.label||'Module'} subtitle={item?.description||'Module details are not available.'}/><section className="panel unavailable-panel"><div className="unavailable-illustration"><div className="unavailable-orbit unavailable-orbit--one"/><div className="unavailable-orbit unavailable-orbit--two"/><div className="unavailable-center"><Icon size={30}/></div></div><Badge tone="neutral">Not implemented</Badge><h2>This module is not available yet</h2><p>The interface is reserved for this OS requirement. No runtime result, status or completion percentage is fabricated.</p><div className="unavailable-checklist"><div><Check size={15}/> Navigation is available</div><div><Check size={15}/> Requirement status is explicit</div><div><Clock3 size={15}/> Engine work pending</div></div></section></div>;
-}
-function PageHeading({eyebrow,title,subtitle}) { return <div className="page-heading"><div className="eyebrow">{eyebrow}</div><h1>{title}<span className="title-period">.</span></h1><p className="page-lead">{subtitle}</p></div>; }
-function Field({label,children}) { return <label className="field"><span>{label}</span>{children}</label>; }
-function CodeLine({children,copy}) { return <div className="code-line"><code>{children}</code><button aria-label="Copy command" title="Copy command" onClick={()=>{if(copy)copy();else{navigator.clipboard?.writeText(String(children));}}}><FileText size={15}/></button></div>; }
