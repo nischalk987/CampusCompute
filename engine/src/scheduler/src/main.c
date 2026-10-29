@@ -38,12 +38,11 @@ static bool parse_long_value(const char *text, long *out) {
 
 static bool read_number(const char *prompt, long *out) {
     char buffer[INPUT_SIZE];
-    if (!read_line(prompt, buffer, sizeof(buffer))) return false;
-    if (!parse_long_value(buffer, out)) {
-        fprintf(stderr, "Invalid number; enter a whole number.\n");
-        return false;
+    for (;;) {
+        if (!read_line(prompt, buffer, sizeof(buffer))) return false;
+        if (parse_long_value(buffer, out)) return true;
+        fprintf(stderr, "Invalid number; enter a whole number and try again.\n");
     }
-    return true;
 }
 
 static bool load_jobs(JobManager *manager) {
