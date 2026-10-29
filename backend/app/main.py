@@ -264,8 +264,14 @@ def terminal_session_start(payload: InteractiveStartRequest, request: Request) -
             raise HTTPException(429, "Too many interactive sessions. Exit an existing program first.")
         session_id = uuid.uuid4().hex
         try:
+            # C stdio switches stdout to block buffering when connected to a pipe.
+            # Force line buffering so menu output and scheduling results appear immediately
+            # in the browser instead of remaining hidden until the process exits.
+            stdbuf = shutil.which("stdbuf")
+            command_argv = ([stdbuf, "-oL", "-eL", str(target), *argv[1:]]
+                            if stdbuf else [str(target), *argv[1:]])
             process = subprocess.Popen(
-                [str(target), *argv[1:]], cwd=cwd, stdin=subprocess.PIPE,
+                command_argv, cwd=cwd, stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                 bufsize=1, shell=False, env={**os.environ, "LC_ALL": "C", "TERM": "xterm"},
             )
