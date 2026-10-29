@@ -452,8 +452,9 @@ The C engine uses POSIX/Linux features. Build and run it in Ubuntu/WSL.""", "std
             if command == "mkdir":
                 if len(argv) != 2:
                     return {"stdout": "", "stderr": "Usage: mkdir <directory>\n", "exit_code": 2, "cwd": payload.cwd}
-                (cwd / argv[1]).resolve().mkdir()
-                (cwd / argv[1]).resolve().relative_to(REPO_ROOT.resolve())
+                path = (cwd / argv[1]).resolve()
+                path.relative_to(REPO_ROOT.resolve())
+                path.mkdir()
             elif command == "touch":
                 if len(argv) != 2:
                     return {"stdout": "", "stderr": "Usage: touch <file>\n", "exit_code": 2, "cwd": payload.cwd}
