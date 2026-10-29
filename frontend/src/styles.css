@@ -7,3 +7,46 @@
 @media(max-width:400px){.stats-grid,.stats-grid--three{grid-template-columns:1fr 1fr}.stat-label{font-size:9px}.module-row{gap:6px}.module-info strong{font-size:9px}.module-info span{font-size:8px}.module-row>.badge{white-space:normal;max-width:75px;line-height:1.2}.help-button{display:none}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
 .muted-dot--connected{background:#0f9f83}.summary-strip{display:flex;align-items:center;gap:9px;padding:11px 12px;background:#e5f5f1;border:1px solid #c9ebe1;border-radius:8px;color:#0f766e;margin-bottom:13px;font-size:10px}.summary-strip code{font-size:10px;overflow-wrap:anywhere}.connection-pill .muted-dot--connected{background:#0f9f83}
+
+
+/* Interactive terminal workspace */
+.terminal-page{max-width:1500px}
+.terminal-notice{display:flex;align-items:flex-start;gap:11px;padding:14px 16px;margin-bottom:18px;border:1px solid #f0dfb8;background:#fff9eb;color:#89631f;border-radius:10px}
+.terminal-notice>svg{flex-shrink:0;margin-top:2px}
+.terminal-notice strong{font-size:11px;color:#79551b}
+.terminal-notice p{font-size:10px;line-height:1.65;color:#947b4b;margin:5px 0 0}
+.terminal-notice code{font:10px ui-monospace,SFMono-Regular,monospace;background:#fff0ce;padding:2px 4px;border-radius:4px}
+.terminal-window{overflow:hidden;border:1px solid #263449;border-radius:12px;background:#101722;box-shadow:0 14px 35px #10172218;margin-bottom:19px}
+.terminal-titlebar{height:44px;display:flex;align-items:center;gap:12px;padding:0 14px;background:#1a2432;border-bottom:1px solid #2a3749}
+.terminal-lights{display:flex;align-items:center;gap:6px}
+.terminal-lights span{width:9px;height:9px;border-radius:50%;background:#f87171}
+.terminal-lights span:nth-child(2){background:#fbbf24}
+.terminal-lights span:nth-child(3){background:#34d399}
+.terminal-title{display:flex;align-items:center;justify-content:center;gap:7px;flex:1;color:#c7d2e0;font-size:10px;font-weight:700}
+.terminal-title svg{color:#a5b4fc}
+.terminal-clear{border:1px solid #39475a;background:#222e3f;color:#cbd5e1;border-radius:6px;padding:5px 9px;font-size:9px}
+.terminal-clear:hover{background:#334155}
+.terminal-screen{min-height:290px;max-height:440px;overflow:auto;padding:18px 18px 12px;color:#d1d9e6;font:11px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace;cursor:text}
+.terminal-line{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 7px;font:inherit}
+.terminal-line--system{color:#a5b4fc;font-weight:700}
+.terminal-line--muted{color:#8492a6}
+.terminal-line--success{color:#6ee7b7}
+.terminal-line--prompt{color:#93c5fd;margin-top:9px}
+.terminal-line--output{color:#d1d9e6}
+.terminal-line--warning{color:#fcd34d}
+.terminal-line--error{color:#fca5a5}
+.terminal-input-row{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid #263449}
+.terminal-prompt{color:#6ee7b7;white-space:nowrap;flex-shrink:0}
+.terminal-input-row input{flex:1;min-width:40px;border:0;outline:0;background:transparent;color:#f8fafc;font:inherit;padding:7px 0;box-shadow:none}
+.terminal-input-row input::placeholder{color:#66758a}
+.terminal-run{display:flex;align-items:center;gap:5px;border:1px solid #4f46e5;background:#4f46e5;color:white;border-radius:6px;padding:7px 10px;font-size:10px;font-weight:700}
+.terminal-run:disabled{opacity:.4;cursor:not-allowed}
+.terminal-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 15px;border-top:1px solid #263449;background:#151e2a;color:#8190a5;font-size:9px}
+.terminal-footer>span:first-child{display:flex;align-items:center;gap:7px}
+.terminal-footer i{width:6px;height:6px;border-radius:50%;background:#34d399}
+.terminal-quick-panel{margin-bottom:19px}
+.terminal-quick-actions{display:flex;gap:8px;flex-wrap:wrap}
+.terminal-chip{display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid #e5e8ef;background:#fafbfe;border-radius:7px;color:#677389}
+.terminal-chip:hover{border-color:#c7c5ff;background:#f4f3ff;color:#4f46e5}
+.terminal-chip code{font:10px ui-monospace,SFMono-Regular,monospace}
+@media(max-width:720px){.terminal-screen{padding:13px 11px;font-size:10px}.terminal-input-row{flex-wrap:wrap;gap:7px}.terminal-prompt{font-size:9px}.terminal-input-row input{order:2;flex-basis:100%}.terminal-run{margin-left:auto}.terminal-footer{align-items:flex-start;flex-direction:column;gap:4px}.terminal-notice{padding:12px}}
