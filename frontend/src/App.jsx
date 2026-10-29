@@ -345,7 +345,7 @@ function TerminalPage({notify}) {
   }
 
   async function sendInteractiveInput(raw) {
-    const text = raw + '\\n';
+    const text = raw + '\n';
     setLines(prev => [...prev, {type:'prompt', text:raw}]);
     setInput('');
     setHistory(prev => [raw, ...prev].slice(0, 100));
