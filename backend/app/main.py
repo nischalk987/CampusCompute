@@ -7,6 +7,10 @@ import sys
 import shutil
 import subprocess
 import tempfile
+import threading
+import queue
+import uuid
+import time
 from pathlib import Path
 from typing import Annotated
 
@@ -183,6 +187,152 @@ SHELL_OPERATORS = {"|", "||", "&", "&&", ";", ">", ">>", "<", "<<", "2>", "2>>"}
 class TerminalRequest(BaseModel):
     command: str = Field(min_length=1, max_length=2000)
     cwd: str = Field(default=".", max_length=1000)
+
+class InteractiveStartRequest(BaseModel):
+    command: str = Field(min_length=1, max_length=1000)
+    cwd: str = Field(default=".", max_length=1000)
+
+
+class InteractiveInputRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=64)
+    text: str = Field(max_length=4000)
+
+
+_interactive_sessions: dict[str, dict] = {}
+_interactive_lock = threading.Lock()
+_MAX_INTERACTIVE_SESSIONS = 4
+
+
+def _check_terminal_origin(request: Request) -> None:
+    if request.headers.get("origin", "") not in allowed_origins:
+        raise HTTPException(403, "Terminal requests are only accepted from the configured local CampusCompute frontend.")
+
+
+def _read_interactive_output(session_id: str, stream) -> None:
+    try:
+        # Read characters rather than lines so prompts without a newline (e.g. "Choice: ")
+        # are delivered immediately to the browser.
+        while True:
+            char = stream.read(1)
+            if char == "":
+                break
+            with _interactive_lock:
+                session = _interactive_sessions.get(session_id)
+                if session is None:
+                    break
+                session["output"].put(char)
+    except (OSError, ValueError):
+        pass
+
+
+@app.post("/api/terminal/session/start")
+def terminal_session_start(payload: InteractiveStartRequest, request: Request) -> dict:
+    _check_terminal_origin(request)
+    try:
+        argv = shlex.split(payload.command, posix=True)
+    except ValueError as exc:
+        raise HTTPException(400, f"Could not parse command: {exc}") from exc
+    if not argv or any(token in SHELL_OPERATORS for token in argv) or any(
+        any(op in token for op in ("&&", "||", ";", "|", ">", "<", "`", "$("))
+        for token in argv
+    ):
+        raise HTTPException(400, "Enter one executable command without shell operators.")
+    if not (argv[0].startswith("./") or argv[0].startswith(".\\")):
+        raise HTTPException(400, "Interactive mode currently launches repository executables such as ./engine/src/scheduler/cpu_scheduler.")
+    cwd = _workspace_path(payload.cwd)
+    target = (cwd / argv[0]).resolve()
+    try:
+        target.relative_to(REPO_ROOT.resolve())
+    except ValueError as exc:
+        raise HTTPException(400, "Executable must stay inside the repository.") from exc
+    if not target.is_file() or not os.access(target, os.X_OK):
+        raise HTTPException(400, "Executable not found or not executable. Build it first.")
+    for arg in argv[1:]:
+        normalized = arg.replace("\\\\", "/")
+        if normalized.startswith("/") or normalized.startswith("~") or any(part == ".." for part in normalized.split("/")):
+            raise HTTPException(400, "Absolute paths and parent-directory traversal are disabled.")
+    with _interactive_lock:
+        for old_id, old in list(_interactive_sessions.items()):
+            if old["process"].poll() is not None and old["output"].empty():
+                _interactive_sessions.pop(old_id, None)
+        if len(_interactive_sessions) >= _MAX_INTERACTIVE_SESSIONS:
+            raise HTTPException(429, "Too many interactive sessions. Exit an existing program first.")
+        session_id = uuid.uuid4().hex
+        try:
+            process = subprocess.Popen(
+                [str(target), *argv[1:]], cwd=cwd, stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                bufsize=1, shell=False, env={**os.environ, "LC_ALL": "C", "TERM": "xterm"},
+            )
+        except OSError as exc:
+            raise HTTPException(503, f"Could not start interactive program: {exc}") from exc
+        _interactive_sessions[session_id] = {
+            "process": process, "output": queue.Queue(), "created": time.time(),
+            "last_seen": time.time(), "cwd": payload.cwd,
+        }
+        threading.Thread(target=_read_interactive_output, args=(session_id, process.stdout), daemon=True).start()
+    return {"session_id": session_id, "cwd": payload.cwd, "status": "running"}
+
+
+@app.post("/api/terminal/session/input")
+def terminal_session_input(payload: InteractiveInputRequest, request: Request) -> dict:
+    _check_terminal_origin(request)
+    with _interactive_lock:
+        session = _interactive_sessions.get(payload.session_id)
+        if session is None:
+            raise HTTPException(404, "Interactive session not found. Start the program again.")
+        process = session["process"]
+        session["last_seen"] = time.time()
+        if process.poll() is not None or process.stdin is None:
+            raise HTTPException(409, "The program has already exited.")
+        try:
+            process.stdin.write(payload.text)
+            process.stdin.flush()
+        except (BrokenPipeError, OSError, ValueError):
+            raise HTTPException(409, "The program is no longer accepting input.")
+    return {"sent": len(payload.text)}
+
+
+@app.get("/api/terminal/session/{session_id}")
+def terminal_session_poll(session_id: str, request: Request) -> dict:
+    _check_terminal_origin(request)
+    with _interactive_lock:
+        session = _interactive_sessions.get(session_id)
+        if session is None:
+            raise HTTPException(404, "Interactive session not found.")
+        session["last_seen"] = time.time()
+        output_queue = session["output"]
+        process = session["process"]
+    chunks = []
+    size = 0
+    while size < 12000:
+        try:
+            chunk = output_queue.get_nowait()
+        except queue.Empty:
+            break
+        chunks.append(chunk)
+        size += len(chunk)
+    return {"output": "".join(chunks), "running": process.poll() is None,
+            "exit_code": process.poll(), "session_id": session_id}
+
+
+@app.delete("/api/terminal/session/{session_id}")
+def terminal_session_stop(session_id: str, request: Request) -> dict:
+    _check_terminal_origin(request)
+    with _interactive_lock:
+        session = _interactive_sessions.pop(session_id, None)
+    if session is None:
+        return {"stopped": False}
+    process = session["process"]
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+    return {"stopped": True}
+
+
 
 
 def _workspace_path(relative: str) -> Path:
