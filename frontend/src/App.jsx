@@ -39,6 +39,28 @@ function PanelTitle({ eyebrow, title, subtitle, action }) {
   return <div className="panel-title"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{action}</div>;
 }
 
+
+function Field({ label, children }) {
+  return <label className="field"><span>{label}</span>{children}</label>;
+}
+function UnavailablePage({ item }) {
+  const Icon = item?.icon || Settings2;
+  return <div className="page-enter">
+    <PageHeading eyebrow={item?.group || 'WORKSPACE'} title={item?.label || 'Module'} subtitle={item?.description || 'This module is not available yet.'}/>
+    <section className="panel unavailable-panel">
+      <div className="unavailable-illustration"><div className="unavailable-orbit"/><div className="unavailable-orbit unavailable-orbit--two"/><div className="unavailable-center"><Icon size={26}/></div></div>
+      <Badge tone="neutral">Not implemented</Badge>
+      <h2>This module is not wired up yet</h2>
+      <p>The navigation entry is present, but the implementation and tests for this module still need to be completed in the CampusCompute C engine.</p>
+      <div className="unavailable-checklist">
+        <div><Check size={15}/> Define the module input and output contract</div>
+        <div><Check size={15}/> Implement and test the C engine</div>
+        <div><Check size={15}/> Connect the frontend to real engine output</div>
+      </div>
+    </section>
+  </div>;
+}
+
 function PageHeading({ eyebrow, title, subtitle }) {
   return <div className="page-heading">
     <div className="eyebrow">{eyebrow}</div>
