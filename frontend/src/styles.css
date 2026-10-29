@@ -50,3 +50,9 @@
 .terminal-chip:hover{border-color:#c7c5ff;background:#f4f3ff;color:#4f46e5}
 .terminal-chip code{font:10px ui-monospace,SFMono-Regular,monospace}
 @media(max-width:720px){.terminal-screen{padding:13px 11px;font-size:10px}.terminal-input-row{flex-wrap:wrap;gap:7px}.terminal-prompt{font-size:9px}.terminal-input-row input{order:2;flex-basis:100%}.terminal-run{margin-left:auto}.terminal-footer{align-items:flex-start;flex-direction:column;gap:4px}.terminal-notice{padding:12px}}
+
+.terminal-notice--connected{border-color:#b9e6d4;background:#edfbf4;color:#176b4d}
+.terminal-notice--connected strong{color:#176b4d}
+.terminal-notice--connected p{color:#3e8067}
+.terminal-footer i.terminal-dot--offline{background:#f87171}
+.terminal-quick-actions button:disabled{opacity:.5;cursor:not-allowed}
