@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import threading
 import queue
+import pty
 import uuid
 import time
 from pathlib import Path
@@ -208,19 +209,19 @@ def _check_terminal_origin(request: Request) -> None:
         raise HTTPException(403, "Terminal requests are only accepted from the configured local CampusCompute frontend.")
 
 
-def _read_interactive_output(session_id: str, stream) -> None:
+def _read_interactive_output(session_id: str, master_fd: int) -> None:
     try:
-        # Read characters rather than lines so prompts without a newline (e.g. "Choice: ")
-        # are delivered immediately to the browser.
+        # A real PTY provides terminal line discipline and makes interactive C stdio
+        # flush prompts/results naturally, including prompts without trailing newlines.
         while True:
-            char = stream.read(1)
-            if char == "":
+            chunk = os.read(master_fd, 4096)
+            if not chunk:
                 break
             with _interactive_lock:
                 session = _interactive_sessions.get(session_id)
                 if session is None:
                     break
-                session["output"].put(char)
+                session["output"].put(chunk.decode("utf-8", errors="replace"))
     except (OSError, ValueError):
         pass
     finally:
@@ -263,26 +264,29 @@ def terminal_session_start(payload: InteractiveStartRequest, request: Request) -
         if len(_interactive_sessions) >= _MAX_INTERACTIVE_SESSIONS:
             raise HTTPException(429, "Too many interactive sessions. Exit an existing program first.")
         session_id = uuid.uuid4().hex
+        master_fd, slave_fd = pty.openpty()
         try:
-            # C stdio switches stdout to block buffering when connected to a pipe.
-            # Force line buffering so menu output and scheduling results appear immediately
-            # in the browser instead of remaining hidden until the process exits.
-            stdbuf = shutil.which("stdbuf")
-            command_argv = ([stdbuf, "-oL", "-eL", str(target), *argv[1:]]
-                            if stdbuf else [str(target), *argv[1:]])
             process = subprocess.Popen(
-                command_argv, cwd=cwd, stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                bufsize=1, shell=False, env={**os.environ, "LC_ALL": "C", "TERM": "xterm"},
+                [str(target), *argv[1:]], cwd=cwd, stdin=slave_fd,
+                stdout=slave_fd, stderr=slave_fd, close_fds=True,
+                shell=False, env={**os.environ, "LC_ALL": "C", "TERM": "xterm"},
+                start_new_session=True,
             )
         except OSError as exc:
+            os.close(master_fd)
+            os.close(slave_fd)
             raise HTTPException(503, f"Could not start interactive program: {exc}") from exc
+        finally:
+            try:
+                os.close(slave_fd)
+            except OSError:
+                pass
         _interactive_sessions[session_id] = {
-            "process": process, "output": queue.Queue(), "created": time.time(),
-            "last_seen": time.time(), "cwd": payload.cwd,
+            "process": process, "master_fd": master_fd, "output": queue.Queue(),
+            "created": time.time(), "last_seen": time.time(), "cwd": payload.cwd,
             "reader_done": threading.Event(),
         }
-        threading.Thread(target=_read_interactive_output, args=(session_id, process.stdout), daemon=True).start()
+        threading.Thread(target=_read_interactive_output, args=(session_id, master_fd), daemon=True).start()
     return {"session_id": session_id, "cwd": payload.cwd, "status": "running"}
 
 
@@ -294,13 +298,13 @@ def terminal_session_input(payload: InteractiveInputRequest, request: Request) -
         if session is None:
             raise HTTPException(404, "Interactive session not found. Start the program again.")
         process = session["process"]
+        master_fd = session["master_fd"]
         session["last_seen"] = time.time()
-        if process.poll() is not None or process.stdin is None:
+        if process.poll() is not None:
             raise HTTPException(409, "The program has already exited.")
         try:
-            process.stdin.write(payload.text)
-            process.stdin.flush()
-        except (BrokenPipeError, OSError, ValueError):
+            os.write(master_fd, payload.text.encode("utf-8"))
+        except OSError:
             raise HTTPException(409, "The program is no longer accepting input.")
     return {"sent": len(payload.text)}
 
@@ -345,6 +349,10 @@ def terminal_session_stop(session_id: str, request: Request) -> dict:
             process.wait(timeout=2)
         except subprocess.TimeoutExpired:
             process.kill()
+    try:
+        os.close(session["master_fd"])
+    except OSError:
+        pass
     return {"stopped": True}
 
 
