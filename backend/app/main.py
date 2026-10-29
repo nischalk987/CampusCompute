@@ -118,8 +118,9 @@ def modules() -> dict:
              "reason": "FR5 currently exposes an interactive CLI rather than a structured request interface."},
             {"id": "worker", "status": "not-implemented", "api": False},
             {"id": "limits", "status": "not-implemented", "api": False},
-            {"id": "terminal", "status": "local-cli-guide", "api": False,
-             "reason": "Arbitrary shell execution is intentionally not exposed."},
+            {"id": "terminal", "status": "local-restricted-terminal", "api": True,
+             "operation": "POST /api/terminal/execute",
+             "reason": "Executes allowlisted commands locally without shell operators or paths outside the repository."},
         ]
     }
 
