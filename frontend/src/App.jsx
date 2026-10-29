@@ -101,7 +101,7 @@ export default function App() {
   const [max, setMax] = useState('7 5 3; 3 2 2; 9 0 2; 2 2 2; 4 3 3');
   const [search, setSearch] = useState('');
   const [commandCopied, setCommandCopied] = useState(false);
-  const [apiBase, setApiBase] = useState('http://127.0.0.1:8000');
+  const [apiBase, setApiBase] = useState('http://127.0.0.1:8001');
   const [apiStatus, setApiStatus] = useState('checking');
   const [apiEvents, setApiEvents] = useState([]);
   const [apiSummary, setApiSummary] = useState('');
@@ -273,7 +273,7 @@ function BankerPage({available,setAvailable,alloc,setAlloc,max,setMax,result,run
 }
 function ProducerPage({count,setCount,notify,apiBase,setApiBase,apiStatus,events,summary,busy,runApi}) {
   const validCount = Number.isInteger(Number(count)) && Number(count) >= 1 && Number(count) <= 100000;
-  return <div className="page-enter"><PageHeading eyebrow="CONCURRENCY / FR3" title="Producer–Consumer" subtitle="Execute the real POSIX-threaded C logger through the localhost API and inspect its event log."/><div className="status-banner status-banner--teal"><div className="status-banner-icon"><Activity size={19}/></div><div className="status-banner-copy"><strong>POSIX producer–consumer module is implemented</strong><span>The adapter invokes the fixed C executable, parses the temporary TSV log, and returns those real events.</span></div><Badge tone={apiStatus==='connected'?'success':apiStatus==='checking'?'warning':'danger'}>{apiStatus==='connected'?'API connected':apiStatus==='checking'?'Checking API':'API disconnected'}</Badge></div><div className="content-grid"><section className="panel"><PanelTitle eyebrow="LOCAL RUN CONFIGURATION" title="Run C engine" subtitle="Requests are sent only to the configured local API origin."/><div className="form-stack"><Field label="API base URL"><input value={apiBase} onChange={e=>setApiBase(e.target.value.trim())} placeholder="http://127.0.0.1:8000" /></Field><Field label="Number of events (1–100000)"><input type="number" min="1" max="100000" step="1" value={count} onChange={e=>setCount(e.target.value)}/></Field><button className="button button-primary button-full" disabled={!validCount||apiStatus!=='connected'||busy} onClick={runApi}>{busy?<RefreshCw size={16}/>:<Play size={16}/>} {busy?'Running C module…':'Run real C module'}</button>{apiStatus!=='connected'&&<p className="footnote">Start the adapter from the repository root: <code>uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000</code></p>}</div><div className="info-note"><CircleHelp size={15}/> The API validates this count and calls the fixed executable with shell execution disabled. It does not run browser-supplied commands.</div></section><section className="panel"><PanelTitle eyebrow="REAL ENGINE OUTPUT" title="Runtime summary" subtitle={events.length?'Returned by the C executable':'No event log loaded yet.'} action={events.length?<Badge tone="success">C engine</Badge>:null}/>{summary&&<div className="summary-strip"><Check size={16}/><code>{summary}</code></div>}{events.length?<div className="table-scroll"><table><thead><tr><th>Time</th><th>Sequence</th><th>Message</th></tr></thead><tbody>{events.map(event=><tr key={event.sequence}><td>{event.timestamp}</td><td>{event.sequence}</td><td>{event.message}</td></tr>)}</tbody></table></div>:<EmptyState icon={FileText} title="No runtime events loaded" text="When the API is connected, run a batch to display real event-log rows here."/>}</section></div><section className="panel"><PanelTitle eyebrow="BUILD & TEST" title="Direct CLI fallback" subtitle="The engine stays usable when the dashboard or API is stopped."/><CodeLine>make -C engine/src/producer_consumer clean test</CodeLine><CodeLine>mkdir -p logs</CodeLine><CodeLine>./engine/src/producer_consumer/producer_consumer {count} logs/activity.log</CodeLine></section></div>;
+  return <div className="page-enter"><PageHeading eyebrow="CONCURRENCY / FR3" title="Producer–Consumer" subtitle="Execute the real POSIX-threaded C logger through the localhost API and inspect its event log."/><div className="status-banner status-banner--teal"><div className="status-banner-icon"><Activity size={19}/></div><div className="status-banner-copy"><strong>POSIX producer–consumer module is implemented</strong><span>The adapter invokes the fixed C executable, parses the temporary TSV log, and returns those real events.</span></div><Badge tone={apiStatus==='connected'?'success':apiStatus==='checking'?'warning':'danger'}>{apiStatus==='connected'?'API connected':apiStatus==='checking'?'Checking API':'API disconnected'}</Badge></div><div className="content-grid"><section className="panel"><PanelTitle eyebrow="LOCAL RUN CONFIGURATION" title="Run C engine" subtitle="Requests are sent only to the configured local API origin."/><div className="form-stack"><Field label="API base URL"><input value={apiBase} onChange={e=>setApiBase(e.target.value.trim())} placeholder="http://127.0.0.1:8001" /></Field><Field label="Number of events (1–100000)"><input type="number" min="1" max="100000" step="1" value={count} onChange={e=>setCount(e.target.value)}/></Field><button className="button button-primary button-full" disabled={!validCount||apiStatus!=='connected'||busy} onClick={runApi}>{busy?<RefreshCw size={16}/>:<Play size={16}/>} {busy?'Running C module…':'Run real C module'}</button>{apiStatus!=='connected'&&<p className="footnote">Start the adapter from the repository root: <code>uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000</code></p>}</div><div className="info-note"><CircleHelp size={15}/> The API validates this count and calls the fixed executable with shell execution disabled. It does not run browser-supplied commands.</div></section><section className="panel"><PanelTitle eyebrow="REAL ENGINE OUTPUT" title="Runtime summary" subtitle={events.length?'Returned by the C executable':'No event log loaded yet.'} action={events.length?<Badge tone="success">C engine</Badge>:null}/>{summary&&<div className="summary-strip"><Check size={16}/><code>{summary}</code></div>}{events.length?<div className="table-scroll"><table><thead><tr><th>Time</th><th>Sequence</th><th>Message</th></tr></thead><tbody>{events.map(event=><tr key={event.sequence}><td>{event.timestamp}</td><td>{event.sequence}</td><td>{event.message}</td></tr>)}</tbody></table></div>:<EmptyState icon={FileText} title="No runtime events loaded" text="When the API is connected, run a batch to display real event-log rows here."/>}</section></div><section className="panel"><PanelTitle eyebrow="BUILD & TEST" title="Direct CLI fallback" subtitle="The engine stays usable when the dashboard or API is stopped."/><CodeLine>make -C engine/src/producer_consumer clean test</CodeLine><CodeLine>mkdir -p logs</CodeLine><CodeLine>./engine/src/producer_consumer/producer_consumer {count} logs/activity.log</CodeLine></section></div>;
 }
 function TerminalPage({notify}) {
   const [input, setInput] = useState('');
@@ -281,14 +281,14 @@ function TerminalPage({notify}) {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [lines, setLines] = useState([
     {type:'system', text:'CampusCompute terminal · local backend'},
-    {type:'muted', text:'Connecting to the local command runner at http://127.0.0.1:8000 …'},
+    {type:'muted', text:'Connecting to the local command runner at http://127.0.0.1:8001 …'},
     {type:'success', text:'Type "help" to see commands. This terminal executes real commands through the local API.'}
   ]);
   const [cwd, setCwd] = useState('.');
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
-  const apiBase = 'http://127.0.0.1:8000';
-  const quickCommands = ['help', 'pwd', 'ls', 'git status', 'make -C engine/src/scheduler clean test'];
+  const apiBase = 'http://127.0.0.1:8001';
+  const quickCommands = ['help', 'project', 'modules', 'pwd', 'ls', 'git status', 'python --version', 'npm --prefix frontend run build'];
 
   useEffect(() => {
     let cancelled = false;
@@ -373,7 +373,7 @@ function TerminalPage({notify}) {
     <div className={connected ? 'terminal-notice terminal-notice--connected' : 'terminal-notice'}>
       {connected ? <Check size={17}/> : <AlertTriangle size={17}/>}
       <div><strong>{connected ? 'Local terminal connected' : 'Local backend required'}</strong>
-        <p>{connected ? 'Commands run on the machine where the CampusCompute backend is running, inside the repository workspace.' : <>Start the API from Ubuntu/WSL: <code>uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000</code></>}</p>
+        <p>{connected ? 'Commands run on the machine where the CampusCompute backend is running, inside the repository workspace.' : <>Start the API from the repository root in PowerShell: <code>python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8001</code></>}</p>
         <p>For safety, the runner uses an allowlist, does not invoke a shell, blocks shell operators and restricts the working directory to this repository.</p>
       </div>
     </div>
@@ -390,9 +390,9 @@ function TerminalPage({notify}) {
       <div className="terminal-footer"><span><i className={connected?'':'terminal-dot--offline'}/>{connected?'connected · local execution':'waiting for backend'}</span><span>↑/↓ history · Enter run · Ctrl+L clear</span></div>
     </section>
     <section className="panel terminal-quick-panel"><PanelTitle eyebrow="QUICK COMMANDS" title="Try a command" subtitle="Shortcuts execute through the local backend."/><div className="terminal-quick-actions">{quickCommands.map(cmd=><button key={cmd} className="terminal-chip" onClick={()=>runCommand(cmd)} disabled={busy}><code>{cmd}</code><ArrowRight size={13}/></button>)}</div></section>
-    <section className="panel"><PanelTitle eyebrow="START THE BACKEND" title="One-time setup" subtitle="Run these commands from the repository root in Ubuntu/WSL."/>
-      <div className="command-list"><CodeLine>python3 -m venv .venv</CodeLine><CodeLine>source .venv/bin/activate</CodeLine><CodeLine>pip install -r backend/requirements.txt</CodeLine><CodeLine>uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000</CodeLine></div>
-      <div className="info-note"><CircleHelp size={15}/> Keep the backend bound to 127.0.0.1. This is a local development terminal, not a public shell service. Commands run on the backend host, so use Ubuntu/WSL to run Linux C-engine commands.</div>
+    <section className="panel"><PanelTitle eyebrow="START THE BACKEND" title="Windows setup" subtitle="Run these commands from the CampusCompute repository root in PowerShell. Keep this terminal open."/>
+      <div className="command-list"><CodeLine>python -m pip install -r backend\requirements.txt</CodeLine><CodeLine>python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8001</CodeLine></div>
+      <div className="info-note"><CircleHelp size={15}/> The API runs locally on port 8001. This terminal supports project navigation and Windows development commands. The C engine uses POSIX/Linux APIs, so build and run its modules in Ubuntu/WSL.</div>
     </section>
   </div>;
 }
