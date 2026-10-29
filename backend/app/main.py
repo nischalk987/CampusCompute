@@ -202,7 +202,10 @@ def terminal_execute(payload: TerminalRequest, request: Request) -> dict:
     if origin not in allowed_origins:
         raise HTTPException(403, "Terminal requests are only accepted from the configured local CampusCompute frontend.")
     try:
-        argv = shlex.split(payload.command, posix=(os.name != "nt"))
+        lexer = shlex.shlex(payload.command, posix=True)
+        lexer.whitespace_split = True
+        lexer.escape = ""
+        argv = list(lexer)
     except ValueError as exc:
         raise HTTPException(400, f"Could not parse command: {exc}") from exc
     if not argv:
@@ -212,7 +215,7 @@ def terminal_execute(payload: TerminalRequest, request: Request) -> dict:
         for token in argv
     ):
         raise HTTPException(400, "Shell operators, redirection and command chaining are disabled. Run one command at a time.")
-    command = argv[0]
+    command = argv[0].lower()
     if command in {"cd", "clear", "cls"}:
         if command == "cd":
             target = argv[1] if len(argv) > 1 else "."
