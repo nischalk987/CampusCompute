@@ -325,7 +325,7 @@ function TerminalPage({notify}) {
     setInput('');
     if (cmd === 'clear' || cmd === 'cls') { setLines([]); return; }
     if (cmd === 'help') {
-      appendCommand(cmd, 'Enabled commands include:\n  pwd, ls, cd <directory>\n  cat, head, tail, grep, find, wc, sort, uniq, cut, tr\n  git, make, gcc, g++, python3, pytest\n  mkdir, touch, cp, mv, file, tree, du, df, stat\n  date, uname, whoami, id, which, echo, printf\n  clear / cls\n\nRun one command at a time. Shell pipes, redirection, chaining and commands outside the allowlist are disabled. Paths must remain inside the repository.');
+      appendCommand(cmd, 'CampusCompute terminal commands:\n  help, project, modules\n  pwd, ls [path], cd <directory>, tree [path]\n  cat <file>, head [-n N] <file>, tail [-n N] <file>, grep <text> <file>, find [path] [-name pattern], wc <file>\n  git status, python --version, npm --prefix frontend run build\n  build [scheduler|producer], test [backend|scheduler|producer|all], run producer [count]\n  echo, date, uname, whoami, which, mkdir, touch, cp, mv, clear\n\nOne command at a time. Shell pipes, redirection and command chaining are disabled. Paths stay inside the repository. The C engine requires Ubuntu/WSL.');
       return;
     }
     setBusy(true);
