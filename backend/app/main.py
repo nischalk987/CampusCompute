@@ -173,10 +173,8 @@ def producer_consumer(event_count: Annotated[int, Query(ge=1, le=100_000)] = 12)
 # invokes a shell, accepts shell operators, or allows its working directory outside
 # the repository. Keep Uvicorn bound to 127.0.0.1.
 TERMINAL_COMMANDS = {
-    "ls", "pwd", "cat", "head", "tail", "grep", "find", "wc", "sort", "uniq",
-    "cut", "tr", "printf", "echo", "date", "uname", "whoami", "id", "which",
-    "git", "make", "gcc", "g++", "cc", "python", "python3", "pytest",
-    "file", "tree", "du", "df", "stat", "mkdir", "touch", "cp", "mv",
+    "git", "make", "gcc", "g++", "cc", "python", "python3", "py", "pytest",
+    "npm", "npx", "node", "file", "du", "df", "stat",
 }
 SHELL_OPERATORS = {"|", "||", "&", "&&", ";", ">", ">>", "<", "<<", "2>", "2>>"}
 
@@ -230,6 +228,161 @@ def terminal_execute(payload: TerminalRequest, request: Request) -> dict:
             return {"stdout": "", "stderr": "", "exit_code": 0, "cwd": "." if str(new_cwd) == "." else new_cwd.as_posix()}
         return {"stdout": "", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
     cwd = _workspace_path(payload.cwd)
+
+    # Built-ins keep common terminal commands usable on Windows and Linux.
+    if command in {"help", "?"}:
+        return {"stdout": """CampusCompute terminal
+Navigation: pwd | ls [path] | cd <directory> | tree [path]
+Files: cat <file> | head [-n N] <file> | tail [-n N] <file> | wc <file> | grep <text> <file>
+Project: project | modules | build [scheduler|producer] | test | test scheduler | test producer | run producer [count]
+Development: git status | python --version | npm --prefix frontend run build
+Safety: one command at a time; shell pipes/chaining are disabled; paths must stay inside this repository.
+The C engine uses POSIX/Linux features. Build and run it in Ubuntu/WSL.""", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command in {"project", "about"}:
+        import platform
+        return {"stdout": (
+            "CampusCompute — Intelligent Job Scheduling and Resource Management\n"
+            f"Repository: {REPO_ROOT}\nPlatform: {platform.platform()}\nPython: {sys.version.split()[0]}\n"
+            "Frontend: React + Vite\nC engine: engine/src (Ubuntu/WSL recommended)\n\n"
+            "Implemented: job manager, CPU scheduling, producer-consumer, Banker's Algorithm.\n"
+            "Planned/not exposed: shared-memory IPC, worker failure, resource limits."
+        ), "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command in {"modules", "module"}:
+        return {"stdout": (
+            "CampusCompute modules\n"
+            "  jobs        implemented C job manager\n"
+            "  scheduling  FCFS, Round Robin and Priority C scheduler\n"
+            "  producer    POSIX producer-consumer event logger\n"
+            "  banker      Banker's Algorithm\n"
+            "  ipc         planned / not exposed by API\n"
+            "  worker      planned / not exposed by API\n"
+            "  limits      planned / not exposed by API\n"
+        ), "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command == "build":
+        target = argv[1].lower() if len(argv) > 1 else "all"
+        if target not in {"all", "scheduler", "producer", "producer-consumer"}:
+            return {"stdout": "", "stderr": "Usage: build [scheduler|producer]\n", "exit_code": 2, "cwd": payload.cwd}
+        if os.name == "nt":
+            return {"stdout": "", "stderr": (
+                "The C engine uses POSIX/Linux features and must be built in Ubuntu/WSL.\n"
+                "Run: make -C engine/src/scheduler test\n"
+                "Run: make -C engine/src/producer_consumer test\n"
+                "The frontend works on Windows: npm --prefix frontend run build\n"
+            ), "exit_code": 2, "cwd": payload.cwd}
+        if shutil.which("make") is None:
+            return {"stdout": "", "stderr": "GNU Make is not installed.\n", "exit_code": 127, "cwd": payload.cwd}
+        dirs = ["engine/src/scheduler", "engine/src/producer_consumer"] if target == "all" else [
+            "engine/src/scheduler" if target == "scheduler" else "engine/src/producer_consumer"
+        ]
+        outputs = []
+        for directory in dirs:
+            result = subprocess.run(["make", "-C", str(REPO_ROOT / directory), "all"], cwd=REPO_ROOT, capture_output=True, text=True, timeout=60, check=False, shell=False)
+            outputs.append(f"$ make -C {directory} all\n{result.stdout}{result.stderr}")
+            if result.returncode:
+                return {"stdout": "".join(outputs), "stderr": "", "exit_code": result.returncode, "cwd": payload.cwd}
+        return {"stdout": "".join(outputs) + "C engine build completed.\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command == "test":
+        target = argv[1].lower() if len(argv) > 1 else "backend"
+        if target in {"scheduler", "producer", "producer-consumer", "all"}:
+            if os.name == "nt":
+                return {"stdout": "", "stderr": "C engine tests need Ubuntu/WSL:\nmake -C engine/src/scheduler test\nmake -C engine/src/producer_consumer test\n", "exit_code": 2, "cwd": payload.cwd}
+            if shutil.which("make") is None:
+                return {"stdout": "", "stderr": "GNU Make is not installed.\n", "exit_code": 127, "cwd": payload.cwd}
+            dirs = (["engine/src/scheduler", "engine/src/producer_consumer"] if target == "all" else
+                    ["engine/src/scheduler" if target == "scheduler" else "engine/src/producer_consumer"])
+            outputs = []
+            for directory in dirs:
+                result = subprocess.run(["make", "-C", str(REPO_ROOT / directory), "test"], cwd=REPO_ROOT, capture_output=True, text=True, timeout=90, check=False, shell=False)
+                outputs.append(f"$ make -C {directory} test\n{result.stdout}{result.stderr}")
+                if result.returncode:
+                    return {"stdout": "".join(outputs), "stderr": "", "exit_code": result.returncode, "cwd": payload.cwd}
+            return {"stdout": "".join(outputs) + "C engine tests passed.\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+        result = subprocess.run([sys.executable, "-m", "pytest", "backend/tests", "-q"], cwd=REPO_ROOT, capture_output=True, text=True, timeout=90, check=False, shell=False)
+        return {"stdout": result.stdout, "stderr": result.stderr, "exit_code": result.returncode, "cwd": payload.cwd}
+    if command == "run" and len(argv) >= 2 and argv[1].lower() in {"producer", "producer-consumer"}:
+        count = argv[2] if len(argv) > 2 else "12"
+        if not count.isdigit() or not 1 <= int(count) <= 100000:
+            return {"stdout": "", "stderr": "Usage: run producer [event_count], with count 1–100000.\n", "exit_code": 2, "cwd": payload.cwd}
+        if os.name == "nt":
+            return {"stdout": "", "stderr": "Run this POSIX-threaded C module in Ubuntu/WSL:\nmake -C engine/src/producer_consumer all\n./engine/src/producer_consumer/producer_consumer " + count + "\n", "exit_code": 2, "cwd": payload.cwd}
+        executable_path = REPO_ROOT / "engine/src/producer_consumer/producer_consumer"
+        if not executable_path.exists():
+            return {"stdout": "", "stderr": "Executable not built. Run: build producer\n", "exit_code": 127, "cwd": payload.cwd}
+        result = subprocess.run([str(executable_path), count], cwd=REPO_ROOT, capture_output=True, text=True, timeout=30, check=False, shell=False)
+        return {"stdout": result.stdout, "stderr": result.stderr, "exit_code": result.returncode, "cwd": payload.cwd}
+
+    if command == "pwd":
+        return {"stdout": str(cwd) + "\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command in {"ls", "dir"}:
+        target = cwd
+        if len(argv) > 1 and not argv[1].startswith("-"):
+            target = (cwd / argv[1]).resolve()
+            try:
+                target.relative_to(REPO_ROOT.resolve())
+            except ValueError as exc:
+                raise HTTPException(400, "Paths must stay inside the repository.") from exc
+        if not target.exists():
+            return {"stdout": "", "stderr": f"Path not found: {argv[1]}\n", "exit_code": 1, "cwd": payload.cwd}
+        if target.is_file():
+            return {"stdout": target.name + "\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+        entries = sorted(target.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+        return {"stdout": ("\n".join(p.name + ("/" if p.is_dir() else "") for p in entries) + "\n") if entries else "(empty directory)\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command in {"cat", "type"}:
+        if len(argv) < 2:
+            return {"stdout": "", "stderr": "Usage: cat <file> [file ...]\n", "exit_code": 2, "cwd": payload.cwd}
+        output = []
+        for name in argv[1:]:
+            path = (cwd / name).resolve()
+            try:
+                path.relative_to(REPO_ROOT.resolve())
+            except ValueError as exc:
+                raise HTTPException(400, "Paths must stay inside the repository.") from exc
+            if not path.is_file():
+                return {"stdout": "", "stderr": f"File not found: {name}\n", "exit_code": 1, "cwd": payload.cwd}
+            if path.stat().st_size > 1000000:
+                return {"stdout": "", "stderr": "Files larger than 1 MB are not displayed.\n", "exit_code": 1, "cwd": payload.cwd}
+            output.append(path.read_text(encoding="utf-8", errors="replace"))
+        return {"stdout": "".join(output), "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command in {"head", "tail"}:
+        args = argv[1:]
+        number = 10
+        if len(args) >= 2 and args[0] in {"-n", "--lines"}:
+            try:
+                number = max(0, min(10000, int(args[1])))
+            except ValueError:
+                return {"stdout": "", "stderr": "Line count must be an integer.\n", "exit_code": 2, "cwd": payload.cwd}
+            args = args[2:]
+        if len(args) != 1:
+            return {"stdout": "", "stderr": f"Usage: {command} [-n N] <file>\n", "exit_code": 2, "cwd": payload.cwd}
+        path = (cwd / args[0]).resolve()
+        try:
+            path.relative_to(REPO_ROOT.resolve())
+        except ValueError as exc:
+            raise HTTPException(400, "Paths must stay inside the repository.") from exc
+        if not path.is_file():
+            return {"stdout": "", "stderr": f"File not found: {args[0]}\n", "exit_code": 1, "cwd": payload.cwd}
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        selected = lines[:number] if command == "head" else (lines[-number:] if number else [])
+        return {"stdout": "\n".join(selected) + ("\n" if selected else ""), "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command == "echo":
+        return {"stdout": " ".join(argv[1:]) + "\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
+    if command == "tree":
+        target = (cwd / (argv[1] if len(argv) > 1 else ".")).resolve()
+        try:
+            target.relative_to(REPO_ROOT.resolve())
+        except ValueError as exc:
+            raise HTTPException(400, "Paths must stay inside the repository.") from exc
+        if not target.is_dir():
+            return {"stdout": "", "stderr": "Directory not found.\n", "exit_code": 1, "cwd": payload.cwd}
+        output = [target.name or "."]
+        for i, path in enumerate(sorted(target.rglob("*"), key=lambda p: p.as_posix().lower())):
+            if i >= 300:
+                output.append("... output capped at 300 entries")
+                break
+            depth = len(path.relative_to(target).parts)
+            if depth <= 4:
+                output.append("  " * depth + path.name + ("/" if path.is_dir() else ""))
+        return {"stdout": "\n".join(output) + "\n", "stderr": "", "exit_code": 0, "cwd": payload.cwd}
     executable: str
     if command.startswith("./") or command.startswith(".\\"):
         target = (cwd / command).resolve()
