@@ -280,15 +280,16 @@ function TerminalPage({notify}) {
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [lines, setLines] = useState([
-    {type:'system', text:'CampusCompute terminal · local backend'},
+    {type:'system', text:'CampusCompute terminal · Ubuntu interactive backend'},
     {type:'muted', text:'Connecting to the local command runner at http://127.0.0.1:8001 …'},
-    {type:'success', text:'Type "help" to see commands. This terminal executes real commands through the local API.'}
+    {type:'success', text:'Run ./engine/src/scheduler/cpu_scheduler to start an interactive session. Enter sends input to the running program.'}
   ]);
   const [cwd, setCwd] = useState('.');
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [sessionId, setSessionId] = useState('');
   const apiBase = 'http://127.0.0.1:8001';
-  const quickCommands = ['help', 'project', 'modules', 'pwd', 'ls', 'git status', 'python --version', 'npm --prefix frontend run build'];
+  const quickCommands = ['help', 'project', 'modules', 'pwd', 'ls', 'git status', 'build scheduler', 'test scheduler'];
 
   useEffect(() => {
     let cancelled = false;
@@ -297,17 +298,43 @@ function TerminalPage({notify}) {
       .then(() => {
         if (!cancelled) {
           setConnected(true);
-          setLines(prev => [...prev, {type:'success', text:'Local API connected. Commands will run in the repository workspace.'}]);
+          setLines(prev => [...prev, {type:'success', text:'Local API connected. Interactive programs can receive keyboard input.'}]);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setConnected(false);
-          setLines(prev => [...prev, {type:'warning', text:'Local API is not running. Start it from Ubuntu/WSL using the instructions below, then try again.'}]);
+          setLines(prev => [...prev, {type:'warning', text:'Local API is not running. Start it from Ubuntu/WSL, then try again.'}]);
         }
       });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!sessionId) return undefined;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const response = await fetch(apiBase + '/api/terminal/session/' + sessionId);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.detail || 'Interactive session polling failed');
+        if (cancelled) return;
+        if (data.output) setLines(prev => [...prev, {type:'output', text:data.output}]);
+        if (!data.running) {
+          setLines(prev => [...prev, {type:'success', text:'Program exited with code ' + data.exit_code}]);
+          setSessionId('');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLines(prev => [...prev, {type:'error', text:error.message}]);
+          setSessionId('');
+        }
+      }
+    };
+    const timer = window.setInterval(poll, 250);
+    poll();
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [sessionId]);
 
   function appendCommand(cmd, output, type='output') {
     setLines(prev => [
@@ -317,19 +344,53 @@ function TerminalPage({notify}) {
     ]);
   }
 
+  async function sendInteractiveInput(raw) {
+    const text = raw + '\\n';
+    setLines(prev => [...prev, {type:'prompt', text:raw}]);
+    setInput('');
+    setHistory(prev => [raw, ...prev].slice(0, 100));
+    setHistoryIndex(-1);
+    try {
+      const response = await fetch(apiBase + '/api/terminal/session/input', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({session_id:sessionId, text})
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || 'Could not send input');
+    } catch (error) {
+      setLines(prev => [...prev, {type:'error', text:error.message}]);
+    }
+  }
+
   async function runCommand(raw) {
     const cmd = raw.trim();
     if (!cmd || busy) return;
+    if (sessionId) {
+      await sendInteractiveInput(raw);
+      return;
+    }
     setHistory(prev => [cmd, ...prev].slice(0, 100));
     setHistoryIndex(-1);
     setInput('');
     if (cmd === 'clear' || cmd === 'cls') { setLines([]); return; }
     if (cmd === 'help') {
-      appendCommand(cmd, 'CampusCompute terminal commands:\n  help, project, modules\n  pwd, ls [path], cd <directory>, tree [path]\n  cat <file>, head [-n N] <file>, tail [-n N] <file>, grep <text> <file>, find [path] [-name pattern], wc <file>\n  git status, python --version, npm --prefix frontend run build\n  build [scheduler|producer], test [backend|scheduler|producer|all], run producer [count]\n  echo, date, uname, whoami, which, mkdir, touch, cp, mv, clear\n\nOne command at a time. Shell pipes, redirection and command chaining are disabled. Paths stay inside the repository. The C engine requires Ubuntu/WSL.');
+      appendCommand(cmd, 'CampusCompute terminal\\nInteractive: ./engine/src/scheduler/cpu_scheduler (type answers at each prompt)\\nNavigation: pwd | ls [path] | cd <directory> | tree [path]\\nFiles: cat <file> | head [-n N] <file> | tail [-n N] <file> | grep <text> <file> | find [path] [-name pattern] | wc <file>\\nProject: build [scheduler|producer] | test [backend|scheduler|producer|all] | run producer [count]\\nEnter sends input to an interactive program. Select 0 in the scheduler menu to exit.');
       return;
     }
     setBusy(true);
     try {
+      if (cmd.startsWith('./')) {
+        const response = await fetch(apiBase + '/api/terminal/session/start', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({command:cmd, cwd})
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.detail || 'Could not start interactive program');
+        setConnected(true);
+        setSessionId(data.session_id);
+        appendCommand(cmd, 'Interactive session started. Output will stream below; type answers and press Enter.');
+        return;
+      }
       const response = await fetch(apiBase + '/api/terminal/execute', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
@@ -339,26 +400,35 @@ function TerminalPage({notify}) {
       if (!response.ok) throw new Error(data.detail || 'Terminal request failed (' + response.status + ')');
       setConnected(true);
       if (data.cwd !== undefined) setCwd(data.cwd);
-      const output = [data.stdout || '', data.stderr || ''].filter(Boolean).join(data.stdout && data.stderr ? '\n' : '');
+      const output = [data.stdout || '', data.stderr || ''].filter(Boolean).join(data.stdout && data.stderr ? '\\n' : '');
       appendCommand(cmd, output || (data.exit_code === 0 ? '(completed with no output)' : 'Command failed with exit code ' + data.exit_code), data.exit_code === 0 ? 'output' : 'error');
       if (data.exit_code !== 0) setLines(prev => [...prev, {type:'warning', text:'Exit code: ' + data.exit_code}]);
     } catch (error) {
       setConnected(false);
-      appendCommand(cmd, error.message + '\nMake sure the local backend is running and the command is supported.', 'error');
+      appendCommand(cmd, error.message + '\\nMake sure the Ubuntu backend is running and the command is supported.', 'error');
     } finally {
       setBusy(false);
     }
   }
 
+  async function stopInteractive() {
+    if (!sessionId) return;
+    try { await fetch(apiBase + '/api/terminal/session/' + sessionId, {method:'DELETE'}); }
+    finally {
+      setLines(prev => [...prev, {type:'warning', text:'Interactive session stopped.'}]);
+      setSessionId('');
+    }
+  }
+
   function onKeyDown(event) {
     if (event.key === 'Enter') { event.preventDefault(); runCommand(input); }
-    else if (event.key === 'ArrowUp') {
+    else if (!sessionId && event.key === 'ArrowUp') {
       event.preventDefault();
       if (history.length) {
         const next = Math.min(historyIndex + 1, history.length - 1);
         setHistoryIndex(next); setInput(history[next]);
       }
-    } else if (event.key === 'ArrowDown') {
+    } else if (!sessionId && event.key === 'ArrowDown') {
       event.preventDefault();
       if (historyIndex > 0) {
         const next = historyIndex - 1; setHistoryIndex(next); setInput(history[next]);
@@ -369,30 +439,27 @@ function TerminalPage({notify}) {
   }
 
   return <div className="page-enter terminal-page">
-    <PageHeading eyebrow="WORKSPACE / CLI" title="Terminal" subtitle="Run real commands against your local CampusCompute repository."/>
+    <PageHeading eyebrow="WORKSPACE / CLI" title="Terminal" subtitle="Run commands and interact with C programs directly in Ubuntu."/>
     <div className={connected ? 'terminal-notice terminal-notice--connected' : 'terminal-notice'}>
       {connected ? <Check size={17}/> : <AlertTriangle size={17}/>}
-      <div><strong>{connected ? 'Local terminal connected' : 'Local backend required'}</strong>
-        <p>{connected ? 'Commands run on the machine where the CampusCompute backend is running, inside the repository workspace.' : <>Start the API from the repository root in PowerShell: <code>python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8001</code></>}</p>
-        <p>For safety, the runner uses an allowlist, does not invoke a shell, blocks shell operators and restricts the working directory to this repository.</p>
+      <div><strong>{connected ? (sessionId ? 'Interactive program running' : 'Ubuntu terminal backend connected') : 'Local backend required'}</strong>
+        <p>{connected ? 'Interactive sessions keep the process alive and send each Enter key input to the running program.' : <>Start the API from the CampusCompute repository root in Ubuntu: <code>python3 -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8001</code></>}</p>
+        <p>Interactive execution is limited to executable files inside the CampusCompute repository. Use 0 in the scheduler menu to exit normally.</p>
       </div>
     </div>
-    <section className="terminal-window" aria-label="Local interactive terminal">
-      <div className="terminal-titlebar"><div className="terminal-lights"><span/><span/><span/></div><div className="terminal-title"><Terminal size={14}/> campuscompute — local terminal</div><button className="terminal-clear" onClick={()=>setLines([])} title="Clear terminal">Clear</button></div>
+    <section className="terminal-window" aria-label="Interactive Ubuntu terminal">
+      <div className="terminal-titlebar"><div className="terminal-lights"><span/><span/><span/></div><div className="terminal-title"><Terminal size={14}/> campuscompute — interactive terminal</div>{sessionId&&<button className="terminal-clear" onClick={stopInteractive} title="Stop interactive program">Stop program</button>}<button className="terminal-clear" onClick={()=>setLines([])} title="Clear terminal">Clear</button></div>
       <div className="terminal-screen" onClick={()=>document.getElementById('terminal-command')?.focus()}>
         {lines.map((line,index)=><pre className={'terminal-line terminal-line--' + line.type} key={index}>{line.text}</pre>)}
         <form className="terminal-input-row" onSubmit={event=>{event.preventDefault();runCommand(input);}}>
-          <span className="terminal-prompt">student@campuscompute:{cwd === '.' ? '~' : '~/' + cwd}$</span>
-          <input id="terminal-command" aria-label="Terminal command" autoComplete="off" spellCheck="false" value={input} onChange={event=>setInput(event.target.value)} onKeyDown={onKeyDown} placeholder={busy ? 'command running…' : 'type a command…'} disabled={busy}/>
-          <button type="submit" className="terminal-run" disabled={!input.trim()||busy}>{busy?<RefreshCw size={14}/>:<Play size={14}/>} {busy?'Running':'Run'}</button>
+          <span className="terminal-prompt">{sessionId ? 'program input ›' : 'student@campuscompute:' + (cwd === '.' ? '~' : '~/' + cwd) + '$'}</span>
+          <input id="terminal-command" aria-label={sessionId?'Input for running program':'Terminal command'} autoComplete="off" spellCheck="false" value={input} onChange={event=>setInput(event.target.value)} onKeyDown={onKeyDown} placeholder={sessionId ? 'type program input and press Enter…' : 'type a command…'} disabled={busy}/>
+          <button type="submit" className="terminal-run" disabled={!input.trim()||busy}>{busy?<RefreshCw size={14}/>:<Play size={14}/>} {sessionId?'Send input':busy?'Running':'Run'}</button>
         </form>
       </div>
-      <div className="terminal-footer"><span><i className={connected?'':'terminal-dot--offline'}/>{connected?'connected · local execution':'waiting for backend'}</span><span>↑/↓ history · Enter run · Ctrl+L clear</span></div>
+      <div className="terminal-footer"><span><i className={connected?'':'terminal-dot--offline'}/>{sessionId?'interactive session · input enabled':connected?'connected · local execution':'waiting for backend'}</span><span>↑/↓ history · Enter run/send · Ctrl+L clear</span></div>
     </section>
-    <section className="panel terminal-quick-panel"><PanelTitle eyebrow="QUICK COMMANDS" title="Try a command" subtitle="Shortcuts execute through the local backend."/><div className="terminal-quick-actions">{quickCommands.map(cmd=><button key={cmd} className="terminal-chip" onClick={()=>runCommand(cmd)} disabled={busy}><code>{cmd}</code><ArrowRight size={13}/></button>)}</div></section>
-    <section className="panel"><PanelTitle eyebrow="START THE BACKEND" title="Windows setup" subtitle="Run these commands from the CampusCompute repository root in PowerShell. Keep this terminal open."/>
-      <div className="command-list"><CodeLine>python -m pip install -r backend\requirements.txt</CodeLine><CodeLine>python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8001</CodeLine></div>
-      <div className="info-note"><CircleHelp size={15}/> The API runs locally on port 8001. This terminal supports project navigation and Windows development commands. The C engine uses POSIX/Linux APIs, so build and run its modules in Ubuntu/WSL.</div>
-    </section>
+    <section className="panel terminal-quick-panel"><PanelTitle eyebrow="QUICK COMMANDS" title="Try a command" subtitle="Shortcuts execute through the Ubuntu backend."/><div className="terminal-quick-actions">{quickCommands.map(cmd=><button key={cmd} className="terminal-chip" onClick={()=>runCommand(cmd)} disabled={busy||!!sessionId}><code>{cmd}</code><ArrowRight size={13}/></button>)}</div></section>
+    <section className="panel"><PanelTitle eyebrow="START THE BACKEND" title="Ubuntu setup" subtitle="Run these commands from the CampusCompute repository root in Ubuntu and keep the server open."/></section>
   </div>;
 }
