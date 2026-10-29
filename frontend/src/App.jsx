@@ -38,6 +38,24 @@ function Badge({ children, tone = 'neutral' }) {
 function PanelTitle({ eyebrow, title, subtitle, action }) {
   return <div className="panel-title"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>{action}</div>;
 }
+
+function PageHeading({ eyebrow, title, subtitle }) {
+  return <div className="page-heading">
+    <div className="eyebrow">{eyebrow}</div>
+    <h1>{title}<span className="title-period">.</span></h1>
+    {subtitle && <p className="page-lead">{subtitle}</p>}
+  </div>;
+}
+function CodeLine({ children, copy }) {
+  return <div className="code-line">
+    <code>{children}</code>
+    <button type="button" aria-label="Copy command" title="Copy command" onClick={() => {
+      if (copy) copy();
+      else if (navigator.clipboard?.writeText) navigator.clipboard.writeText(String(children));
+    }}>Copy</button>
+  </div>;
+}
+
 function StatCard({ icon: Icon, label, value, foot, tone = 'indigo', trend }) {
   return <article className="stat-card"><div className="stat-top"><div className={`stat-icon stat-icon--${tone}`}><Icon size={19}/></div>{trend && <span className="stat-trend"><ArrowUpRight size={14}/>{trend}</span>}</div><div className="stat-label">{label}</div><div className="stat-value">{value}</div><div className="stat-foot">{foot}</div></article>;
 }
