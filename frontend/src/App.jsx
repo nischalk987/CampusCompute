@@ -339,12 +339,12 @@ function TerminalPage({notify}) {
       if (!response.ok) throw new Error(data.detail || 'Terminal request failed (' + response.status + ')');
       setConnected(true);
       if (data.cwd !== undefined) setCwd(data.cwd);
-      const output = [data.stdout || '', data.stderr || ''].filter(Boolean).join(data.stdout && data.stderr ? '\\n' : '');
+      const output = [data.stdout || '', data.stderr || ''].filter(Boolean).join(data.stdout && data.stderr ? '\n' : '');
       appendCommand(cmd, output || (data.exit_code === 0 ? '(completed with no output)' : 'Command failed with exit code ' + data.exit_code), data.exit_code === 0 ? 'output' : 'error');
       if (data.exit_code !== 0) setLines(prev => [...prev, {type:'warning', text:'Exit code: ' + data.exit_code}]);
     } catch (error) {
       setConnected(false);
-      appendCommand(cmd, error.message + '\\nMake sure the local backend is running and the command is supported.', 'error');
+      appendCommand(cmd, error.message + '\nMake sure the local backend is running and the command is supported.', 'error');
     } finally {
       setBusy(false);
     }
