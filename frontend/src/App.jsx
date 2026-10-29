@@ -366,6 +366,13 @@ function TerminalPage({notify}) {
     const cmd = raw.trim();
     if (!cmd || busy) return;
     if (sessionId) {
+      // Provide a terminal-level escape hatch even if the running program is stuck
+      // at a different prompt than expected. "exit"/"quit" stops the child session.
+      if (['exit', 'quit'].includes(raw.trim().toLowerCase())) {
+        await stopInteractive();
+        setInput('');
+        return;
+      }
       await sendInteractiveInput(raw);
       return;
     }
