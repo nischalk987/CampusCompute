@@ -223,6 +223,11 @@ def _read_interactive_output(session_id: str, stream) -> None:
                 session["output"].put(char)
     except (OSError, ValueError):
         pass
+    finally:
+        with _interactive_lock:
+            session = _interactive_sessions.get(session_id)
+            if session is not None:
+                session["reader_done"].set()
 
 
 @app.post("/api/terminal/session/start")
@@ -269,6 +274,7 @@ def terminal_session_start(payload: InteractiveStartRequest, request: Request) -
         _interactive_sessions[session_id] = {
             "process": process, "output": queue.Queue(), "created": time.time(),
             "last_seen": time.time(), "cwd": payload.cwd,
+            "reader_done": threading.Event(),
         }
         threading.Thread(target=_read_interactive_output, args=(session_id, process.stdout), daemon=True).start()
     return {"session_id": session_id, "cwd": payload.cwd, "status": "running"}
@@ -312,7 +318,10 @@ def terminal_session_poll(session_id: str, request: Request) -> dict:
             break
         chunks.append(chunk)
         size += len(chunk)
-    return {"output": "".join(chunks), "running": process.poll() is None,
+    with _interactive_lock:
+        current = _interactive_sessions.get(session_id)
+        reader_done = current["reader_done"].is_set() if current else True
+    return {"output": "".join(chunks), "running": process.poll() is None or not reader_done,
             "exit_code": process.poll(), "session_id": session_id}
 
 
