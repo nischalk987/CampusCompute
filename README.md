@@ -241,7 +241,7 @@ npm run dev
 
 Create and preview a production build with `npm run build` and `npm run preview`. See [frontend/README.md](frontend/README.md) for scope and data-integrity details.
 
-**Important:** the optional dashboard is connected to the localhost API for the FR3 Producer–Consumer operation. FR1, FR2 and FR5 remain CLI-only for authoritative engine output; browser-side previews are labeled as previews. FR4, FR6 and FR7 are not implemented, and the browser terminal does not execute commands. Project completion percentages display “Not tracked yet” until repository-backed status data is available.
+**Important:** the optional dashboard is connected to the localhost API for the FR3 Producer–Consumer operation. FR1, FR2 and FR5 remain CLI-only for authoritative engine output; browser-side previews are labeled as previews. FR4, FR6 and FR7 are implemented in the C engine and available through the integrated CLI; these modules are not yet connected to structured dashboard API operations. The browser terminal is restricted and does not provide an unrestricted shell. Project completion percentages display “Not tracked yet” until repository-backed status data is available.
 
 ## Local frontend-to-engine integration
 
