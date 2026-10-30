@@ -24,7 +24,7 @@ npm run preview
 - The dashboard labels browser-side scheduling and Banker's calculations as **preview** calculations.
 - Job rows added in the browser are held in React state only; they are not saved to the C engine.
 - Producer–consumer runs display safe local commands because the UI cannot start local C processes without a backend adapter.
-- Shared-memory IPC, worker monitoring and resource-limit screens show explicit **Not implemented** status.
+- Shared-memory IPC, worker monitoring and resource-limit screens are not yet connected to the local API. FR4, FR6 and FR7 are available through the integrated C CLI; the dashboard must continue to label these views as unavailable until real API operations are connected.
 - Project progress says **Not tracked yet** because no repository-backed task/status feed is connected.
 - The terminal screen copies commands only. It does not execute arbitrary commands in a server or browser.
 

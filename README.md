@@ -241,7 +241,7 @@ npm run dev
 
 Create and preview a production build with `npm run build` and `npm run preview`. See [frontend/README.md](frontend/README.md) for scope and data-integrity details.
 
-**Important:** the optional dashboard is connected to the localhost API for the FR3 Producer–Consumer operation. FR1, FR2 and FR5 remain CLI-only for authoritative engine output; browser-side previews are labeled as previews. FR4, FR6 and FR7 are not implemented, and the browser terminal does not execute commands. Project completion percentages display “Not tracked yet” until repository-backed status data is available.
+**Important:** the optional dashboard is connected to the localhost API for the FR3 Producer–Consumer operation. FR1, FR2 and FR5 remain CLI-only for authoritative engine output; browser-side previews are labeled as previews. FR4, FR6 and FR7 are implemented in the C engine and available through the integrated CLI; these modules are not yet connected to structured dashboard API operations. The browser terminal is restricted and does not provide an unrestricted shell. Project completion percentages display “Not tracked yet” until repository-backed status data is available.
 
 ## Local frontend-to-engine integration
 
@@ -253,4 +253,4 @@ uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
 
 The dashboard checks \`GET /health\` and its Producer–Consumer view can call \`POST /api/producer-consumer?event_count=N\`, showing events returned by the C engine. The adapter exposes only fixed operations, validates the count, uses \`shell=False\`, times out executions, and cleans temporary logs. There is deliberately no arbitrary command or terminal endpoint.
 
-FR1, FR2 and FR5 remain accessible through their standalone C CLIs but currently do not have structured non-interactive API contracts. FR4, FR6, FR7 and the integrated FR8 dispatcher remain unimplemented. The API module inventory reports these limitations rather than fabricating results. See [ARCHITECTURE.md](ARCHITECTURE.md) for the actual request/response contract and integration sequence.
+FR1, FR2 and FR5 remain accessible through their standalone C CLIs but currently do not have structured non-interactive API contracts. FR4 is implemented as a POSIX shared-memory IPC module and is integrated into the top-level C CLI. FR6 process monitoring, FR7 resource limits, and the FR8 integrated CLI are also present in the current engine. The optional dashboard/API does not yet expose every module. The API module inventory reports these limitations rather than fabricating results. See [ARCHITECTURE.md](ARCHITECTURE.md) for the actual request/response contract and integration sequence.

@@ -237,7 +237,7 @@ flowchart LR
     CLI --> FR5[FR5 Banker's CLI]
 \`\`\`
 
-The adapter is optional. If it is stopped, the C module CLIs remain usable directly. Only FR3 currently has a non-interactive API operation because its executable accepts command-line arguments and a log path. FR1, FR2 and FR5 are implemented C modules, but their current entry points are interactive menus; this API does not fake or simulate their engine results. FR4, FR6, FR7 and the integrated FR8 dispatcher remain not implemented.
+The adapter is optional. If it is stopped, the C module CLIs remain usable directly. Only FR3 currently has a non-interactive API operation because its executable accepts command-line arguments and a log path. FR1, FR2 and FR5 are implemented C modules, but their current entry points are interactive menus; this API does not fake or simulate their engine results. FR4, FR6, FR7 and the integrated FR8 CLI are implemented in the C engine. FR4 runs separate reader and writer processes using POSIX shared memory and named semaphores. Only FR3 currently has a structured HTTP operation; the other modules are CLI-only.
 
 ### API contract
 
@@ -281,4 +281,4 @@ In a second terminal, run \`cd frontend && npm install && npm run dev\`. Test AP
 
 ### Integration work still required
 
-To make FR1, FR2 and FR5 dashboard actions call the real engine, refactor their existing C core APIs behind a non-interactive structured interface (JSON or another versioned format) rather than piping prompts into interactive menus. When FR4, FR6, FR7 and FR8 are implemented, add each operation to the explicit allowlist, define strict schemas and tests, then update \`/api/modules\`. Until then, dashboard labels must preserve the current unavailable/CLI-only state.
+To make FR1, FR2 and FR5 dashboard actions call the real engine, refactor their existing C core APIs behind a non-interactive structured interface (JSON or another versioned format) rather than piping prompts into interactive menus. FR4 is already implemented in the C engine and top-level CLI; its HTTP adapter and dashboard action remain future integration work. Add non-interactive structured interfaces, explicit allowlisted operations, strict schemas and tests before updating \`/api/modules\`. Until then, dashboard labels must preserve the current unavailable/CLI-only state.

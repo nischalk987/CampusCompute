@@ -101,10 +101,10 @@ def health() -> dict:
             "scheduling": "interactive-cli-only",
             "producer_consumer": "argv-enabled",
             "banker": "interactive-cli-only",
-            "shared_memory": "not-implemented",
-            "worker_failure": "not-implemented",
-            "resource_limits": "not-implemented",
-            "integrated_cli": "not-implemented",
+            "shared_memory": "implemented-cli-only",
+            "worker_failure": "implemented-cli-only",
+            "resource_limits": "implemented-cli-only",
+            "integrated_cli": "implemented",
         },
     }
 
@@ -119,7 +119,8 @@ def modules() -> dict:
              "reason": "FR2 currently exposes an interactive CLI; run it directly for authoritative scheduling."},
             {"id": "producer", "status": "implemented", "api": True,
              "operation": "POST /api/producer-consumer?event_count=12"},
-            {"id": "ipc", "status": "not-implemented", "api": False},
+            {"id": "ipc", "status": "implemented-cli-only", "api": False,
+             "reason": "FR4 uses POSIX shared memory and named semaphores through the integrated C CLI; no structured HTTP endpoint is exposed."},
             {"id": "banker", "status": "implemented", "api": False,
              "reason": "FR5 currently exposes an interactive CLI rather than a structured request interface."},
             {"id": "worker", "status": "not-implemented", "api": False},
@@ -421,8 +422,8 @@ The C engine uses POSIX/Linux features. Build and run it in Ubuntu/WSL.""", "std
             "CampusCompute — Intelligent Job Scheduling and Resource Management\n"
             f"Repository: {REPO_ROOT}\nPlatform: {platform.platform()}\nPython: {sys.version.split()[0]}\n"
             "Frontend: React + Vite\nC engine: engine/src (Ubuntu/WSL recommended)\n\n"
-            "Implemented: job manager, CPU scheduling, producer-consumer, Banker's Algorithm.\n"
-            "Planned/not exposed: shared-memory IPC, worker failure, resource limits."
+            "Implemented: job manager, CPU scheduling, producer-consumer, shared-memory IPC, Banker's Algorithm, worker monitoring and resource limits.\n"
+            "The integrated C CLI is available; only selected modules have structured API operations."
         ), "stderr": "", "exit_code": 0, "cwd": payload.cwd}
     if command in {"modules", "module"}:
         return {"stdout": (
@@ -431,9 +432,9 @@ The C engine uses POSIX/Linux features. Build and run it in Ubuntu/WSL.""", "std
             "  scheduling  FCFS, Round Robin and Priority C scheduler\n"
             "  producer    POSIX producer-consumer event logger\n"
             "  banker      Banker's Algorithm\n"
-            "  ipc         planned / not exposed by API\n"
-            "  worker      planned / not exposed by API\n"
-            "  limits      planned / not exposed by API\n"
+            "  ipc         implemented POSIX shared-memory IPC via C CLI; no HTTP endpoint\n"
+            "  worker      implemented process monitoring via C CLI\n"
+            "  limits      implemented resource limits via C CLI\n"
         ), "stderr": "", "exit_code": 0, "cwd": payload.cwd}
     if command == "build":
         target = argv[1].lower() if len(argv) > 1 else "all"

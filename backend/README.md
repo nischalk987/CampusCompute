@@ -55,9 +55,9 @@ The timestamp and event text above illustrate the schema only; runtime values co
 - FR1 job manager: implemented standalone C CLI; structured HTTP CRUD/list is not yet implemented.
 - FR2 scheduler: implemented standalone C CLI; structured scheduling endpoint is not yet implemented.
 - FR3 producer–consumer: API invokes the actual C executable and returns parsed log records.
-- FR4 shared-memory IPC: not implemented, so no API operation is exposed.
+- FR4 shared-memory IPC: implemented in the C engine and top-level CLI; no structured HTTP endpoint is exposed yet.
 - FR5 Banker: implemented standalone C CLI; structured endpoint is not yet implemented.
-- FR6 worker process demo, FR7 resource limits and integrated FR8 dispatcher: not implemented, so no API operations are exposed.
+- FR6 process monitoring, FR7 resource limits and FR8 integrated CLI: implemented in the C engine; no structured HTTP endpoints are exposed.
 - Terminal: direct local CLI only; no shell endpoint exists.
 
 These boundaries are deliberate. An unavailable module is reported as unavailable rather than returning fabricated results.

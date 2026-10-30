@@ -269,15 +269,47 @@ static int reader(void)
     if (open_shared_memory(&fd) == -1)
         return EXIT_FAILURE;
 
+    /*
+     * shm_open() may succeed just after the writer creates the object but
+     * before it finishes ftruncate(). Wait for the full region rather than
+     * treating this normal startup race as a permanent failure.
+     */
     struct stat info;
-    if (fstat(fd, &info) == -1) {
-        perror("fstat");
+    struct timespec size_deadline;
+    if (clock_gettime(CLOCK_REALTIME, &size_deadline) == -1) {
+        perror("clock_gettime");
         goto cleanup;
     }
+    size_deadline.tv_sec += WAIT_TIMEOUT;
 
-    if (info.st_size < (off_t)sizeof(SharedData)) {
-        fprintf(stderr, "Error: shared-memory region is too small.\n");
-        goto cleanup;
+    for (;;) {
+        if (fstat(fd, &info) == -1) {
+            perror("fstat");
+            goto cleanup;
+        }
+        if (info.st_size >= (off_t)sizeof(SharedData)) {
+            break;
+        }
+
+        struct timespec now;
+        if (clock_gettime(CLOCK_REALTIME, &now) == -1) {
+            perror("clock_gettime");
+            goto cleanup;
+        }
+        if (now.tv_sec > size_deadline.tv_sec ||
+            (now.tv_sec == size_deadline.tv_sec &&
+             now.tv_nsec >= size_deadline.tv_nsec)) {
+            fprintf(stderr, "Error: shared-memory region was not initialized in time.\n");
+            goto cleanup;
+        }
+
+        struct timespec pause_time = {0, 10000000L};
+        while (nanosleep(&pause_time, &pause_time) == -1) {
+            if (errno != EINTR) {
+                perror("nanosleep");
+                goto cleanup;
+            }
+        }
     }
 
     data = mmap(NULL, sizeof(*data), PROT_READ | PROT_WRITE,
