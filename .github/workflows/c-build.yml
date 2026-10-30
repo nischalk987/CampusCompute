@@ -24,7 +24,7 @@ jobs:
       - name: Clean build all C modules and integrated CLI
         run: make clean build
       - name: Run all C module and integrated CLI tests
-        run: make test-engine
+        run: timeout 5m make test-engine
 
   backend-tests:
     runs-on: ubuntu-latest
