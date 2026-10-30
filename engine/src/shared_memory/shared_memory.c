@@ -299,7 +299,7 @@ static int reader(void)
         if (now.tv_sec > size_deadline.tv_sec ||
             (now.tv_sec == size_deadline.tv_sec &&
              now.tv_nsec >= size_deadline.tv_nsec)) {
-            fprintf(stderr, "Error: shared-memory region was not initialized in time.\\n");
+            fprintf(stderr, "Error: shared-memory region was not initialized in time.\n");
             goto cleanup;
         }
 
