@@ -88,19 +88,33 @@ gcc --version
 make --version
 ```
 
-## Build and run
+## Build, run and verify
 
-The exact build command depends on the source files and Makefile committed to the repository. Once the C engine is present, a typical workflow is:
+Run these commands from the repository root on Ubuntu or WSL Ubuntu:
 
 ```bash
-# From the repository root
-make -C engine
-./engine/<compiled-program> --help
+# Install GCC, GNU Make and coreutils if they are not already present.
+sudo apt-get update
+sudo apt-get install -y build-essential coreutils
+
+# Clean build every C module and the integrated CLI.
+make clean build
+
+# Launch the integrated FR1–FR8 CLI.
+./engine/campuscompute
+
+# Run standalone module tests and end-to-end CLI tests.
+make test-engine
 ```
 
-Replace the placeholder executable and commands with the actual names defined by the implementation. These placeholder commands are not usable until the corresponding Makefile and program exist.
+The repository-root `Makefile` provides one entry point for build and test tasks. To run the backend API tests as well, install the Python dependencies and run `make test`:
 
-If the implementation offers a menu instead of command flags, run the compiled program and follow the usage instructions it displays.
+```bash
+python3 -m pip install -r backend/requirements.txt
+make test
+```
+
+The integrated CLI test suite uses deterministic input, checks real module output, verifies IPC cleanup, and applies a timeout to each interactive run so a regression cannot hang CI indefinitely. The backend tests exercise the local API adapter; the dashboard is independently checked by the GitHub Actions production build.
 
 ## Scheduling definitions
 
