@@ -19,7 +19,7 @@ test-engine:
 	$(MAKE) -C engine clean test
 
 test-backend:
-	python3 -m pytest -q backend/tests
+	PYTHONPATH=backend python3 -m pytest -q backend/tests
 
 clean:
 	$(MAKE) -C engine clean
