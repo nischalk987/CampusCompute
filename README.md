@@ -4,7 +4,7 @@
 
 CampusCompute is an Operating Systems Level 3 mini-project for demonstrating core OS concepts through a command-line application written in C on Linux/Ubuntu or WSL Ubuntu. A dashboard-style interface may be added to explore results, but required OS operations and algorithm outputs must come from working code—not hard-coded demonstrations.
 
-> **Project status:** This repository is being initialized. The architecture and commands below describe the intended implementation; verify each feature against the source code as it is added.
+> **Implementation status:** FR1–FR8 are implemented in the C engine and available through standalone module tests and the integrated `engine/campuscompute` CLI. The FastAPI adapter currently exposes structured API execution for FR3; the other engine modules remain CLI-only in the dashboard.
 
 ## Objectives
 
@@ -27,7 +27,7 @@ The planned system has three layers:
 2. **Integration layer (optional):** A local service may validate requests, invoke the compiled C executable, and return parsed results. It must safely validate inputs and must not expose arbitrary command execution.
 3. **C OS engine (required):** Core logic executes on Linux/Ubuntu or WSL Ubuntu and produces real results. The CLI must be independently testable.
 
-### Planned module map
+### Implemented module map
 
 | Requirement | Module | Expected demonstration |
 |---|---|---|
@@ -88,19 +88,33 @@ gcc --version
 make --version
 ```
 
-## Build and run
+## Build, run and verify
 
-The exact build command depends on the source files and Makefile committed to the repository. Once the C engine is present, a typical workflow is:
+Run these commands from the repository root on Ubuntu or WSL Ubuntu:
 
 ```bash
-# From the repository root
-make -C engine
-./engine/<compiled-program> --help
+# Install GCC, GNU Make and coreutils if they are not already present.
+sudo apt-get update
+sudo apt-get install -y build-essential coreutils
+
+# Clean build every C module and the integrated CLI.
+make clean build
+
+# Launch the integrated FR1–FR8 CLI.
+./engine/campuscompute
+
+# Run standalone module tests and end-to-end CLI tests.
+make test-engine
 ```
 
-Replace the placeholder executable and commands with the actual names defined by the implementation. These placeholder commands are not usable until the corresponding Makefile and program exist.
+The repository-root `Makefile` provides one entry point for build and test tasks. To run the backend API tests as well, install the Python dependencies and run `make test`:
 
-If the implementation offers a menu instead of command flags, run the compiled program and follow the usage instructions it displays.
+```bash
+python3 -m pip install -r backend/requirements.txt
+make test
+```
+
+The integrated CLI test suite uses deterministic input, checks real module output, verifies IPC cleanup, and applies a timeout to each interactive run so a regression cannot hang CI indefinitely. The backend tests exercise the local API adapter; the dashboard is independently checked by the GitHub Actions production build.
 
 ## Scheduling definitions
 
@@ -173,7 +187,7 @@ mkdir -p logs
 ./engine/src/producer_consumer/producer_consumer --help
 ```
 
-The event count must be an integer from 1 through 100000. The log path's parent directory must already exist and be writable. The included test target checks help output, a successful 25-event run, log row count, and rejection of invalid counts. This implements FR3's producer–consumer demonstration; it does not claim that FR1–FR8 are complete.
+The event count must be an integer from 1 through 100000. The log path's parent directory must already exist and be writable. The included test target checks help output, a successful 25-event run, log row count, and rejection of invalid counts. FR3 is available as a standalone module and through the integrated CLI. The structured dashboard/API operation currently covers FR3 only.
 
 
 
@@ -189,7 +203,7 @@ make -C engine/src/job_manager test
 ./engine/src/job_manager/job_manager
 ```
 
-The test target covers duplicate/malformed IDs, invalid numeric ranges, lifecycle transitions, completion-time validation, and a menu smoke test. This is an independently built module; the full FR1–FR8 integrated CLI is still being assembled.
+The test target covers duplicate/malformed IDs, invalid numeric ranges, lifecycle transitions, completion-time validation, and a menu smoke test. The module is independently testable and is also available from option 1 in the integrated `engine/campuscompute` CLI.
 
 
 
@@ -205,7 +219,7 @@ make -C engine/src/scheduler test
 ./engine/src/scheduler/cpu_scheduler
 ```
 
-In the CLI, enter a job set once and select a policy or compare all three. Round Robin requires a positive integer quantum. Tie-breaking is documented in [the FR2 module README](engine/src/scheduler/README.md). This module is independently runnable and has not yet been integrated into one top-level FR1–FR8 executable.
+In the CLI, enter a job set once and select a policy or compare all three. Round Robin requires a positive integer quantum. Tie-breaking is documented in [the FR2 module README](engine/src/scheduler/README.md). The scheduler is independently runnable and is also available from option 2 in the integrated `engine/campuscompute` CLI.
 
 
 
@@ -221,7 +235,7 @@ make -C engine/src/banker test
 ./engine/src/banker/banker
 ```
 
-The test cases include a safe state, an unsafe state, invalid allocation values, and invalid matrix dimensions. This module is standalone and not yet part of a single top-level FR1–FR8 executable.
+The test cases include a safe state, an unsafe state, invalid allocation values, and invalid matrix dimensions. The Banker module is independently runnable and is also available from option 5 in the integrated `engine/campuscompute` CLI.
 
 ## Academic use
 
