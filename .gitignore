@@ -1,0 +1,9 @@
+# CampusCompute engine binaries
+engine/campuscompute
+engine/src/process_manager/tests/test_process_manager
+engine/src/resource_limits/resource_limits_demo
+engine/src/resource_limits/tests/test_resource_limits
+engine/src/shared_memory/shared_memory
+
+# Runtime logs
+logs/*.log
