@@ -44,7 +44,7 @@ grep -q "Average waiting time" "$TEMP_DIR/scheduler.txt"
 echo "[PASS] CPU Scheduler integration"
 
 # Test 4: Shared-memory IPC integration
-printf '4\\nCampusCompute IPC integration\\n0\\n' |
+printf '4\nCampusCompute IPC integration\n0\n' |
     "$APP" > "$TEMP_DIR/shared_memory.txt" 2>&1
 
 grep -q "message=CampusCompute IPC integration" "$TEMP_DIR/shared_memory.txt"
