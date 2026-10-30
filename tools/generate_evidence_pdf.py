@@ -7,7 +7,7 @@ import re
 import sys
 from pathlib import Path
 
-from PIL import Image
+from reportlab.lib.utils import ImageReader
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
@@ -74,12 +74,9 @@ def main() -> int:
             missing.append(str(path))
             continue
         try:
-            with Image.open(path) as image:
-                image.verify()
-            with Image.open(path) as image:
-                width, height = image.size
-                if width < 320 or height < 200:
-                    raise ValueError(f"image too small ({width}x{height})")
+            width, height = ImageReader(str(path)).getSize()
+            if width < 320 or height < 200:
+                raise ValueError(f"image too small ({width}x{height})")
             screenshots.append((code, heading, path, width, height))
         except Exception as exc:
             print(f"ERROR: {path}: {exc}", file=sys.stderr)
