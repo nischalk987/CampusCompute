@@ -15,8 +15,8 @@ def test_health_does_not_claim_unimplemented_modules_are_ready():
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert body["engine_modules"]["shared_memory"] == "not-implemented"
-    assert body["engine_modules"]["integrated_cli"] == "not-implemented"
+    assert body["engine_modules"]["shared_memory"] == "implemented-cli-only"
+    assert body["engine_modules"]["integrated_cli"] == "implemented"
 
 
 def test_module_capabilities_are_explicit():
@@ -27,7 +27,7 @@ def test_module_capabilities_are_explicit():
     assert modules["jobs"]["api"] is False
     assert modules["scheduling"]["api"] is False
     assert modules["banker"]["api"] is False
-    assert modules["ipc"]["status"] == "not-implemented"
+    assert modules["ipc"]["status"] == "implemented-cli-only"
 
 
 def test_producer_rejects_count_out_of_range():
