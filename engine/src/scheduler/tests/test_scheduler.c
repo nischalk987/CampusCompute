@@ -32,4 +32,12 @@ static void test_mlq_arrivals(void) {
     schedule_result_destroy(&r); job_manager_destroy(&m);
 }
 
-int main(void){test_srtf_arrivals();test_mlq_arrivals();test_sjf();test_srtf();test_multilevel();puts("New CPU scheduling policy tests passed.");return 0;}
+int main(void){
+    test_sjf();
+    test_srtf();
+    test_multilevel();
+    test_srtf_arrivals();
+    test_mlq_arrivals();
+    puts("New CPU scheduling policy tests passed.");
+    return 0;
+}
