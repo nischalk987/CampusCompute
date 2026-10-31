@@ -249,7 +249,11 @@ static bool run_srtf(const JobManager *manager, ScheduleResult *result, unsigned
         if(best==manager->count) {
             unsigned int next=UINT32_MAX;
             for(size_t i=0;i<manager->count;i++) if(remaining[i] && manager->jobs[i].arrival_time<next) next=manager->jobs[i].arrival_time;
-            if(next==UINT32_MAX) break; clock=next; continue;
+            if (next == UINT32_MAX) {
+                break;
+            }
+            clock = next;
+            continue;
         }
         unsigned int start=clock; clock++;
         remaining[best]--;
@@ -286,7 +290,11 @@ static bool run_multilevel(const JobManager *manager, ScheduleResult *result, ch
                 if(best==n) {
                     unsigned int next=UINT32_MAX;
                     for(size_t i=0;i<n;i++) if(!done[i]&&manager->jobs[i].priority>=2&&manager->jobs[i].arrival_time<next)next=manager->jobs[i].arrival_time;
-                    if(next==UINT32_MAX)break;clock=next;continue;
+                    if (next == UINT32_MAX) {
+                        break;
+                    }
+                    clock = next;
+                    continue;
                 }
                 unsigned int start=clock;clock+=remaining[best];
                 if(!append_slice(result,manager->jobs[best].id,start,clock,error,size)){ok=false;break;}
