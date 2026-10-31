@@ -11,11 +11,14 @@ TIMEOUT_SECONDS="${CAMPUSCOMPUTE_TEST_TIMEOUT:-20}"
 TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
+AUTH_DB="$TEMP_DIR/cli-auth.sqlite3"
+CAMPUSCOMPUTE_AUTH_DB="$AUTH_DB" python3 -c 'import hashlib,os,sqlite3; p=os.environ["CAMPUSCOMPUTE_AUTH_DB"]; s=b"campuscompute-cli-test"; h=hashlib.pbkdf2_hmac("sha256",b"TestPassword123",s,310000).hex(); c=sqlite3.connect(p); c.execute("CREATE TABLE students (id INTEGER PRIMARY KEY, full_name TEXT NOT NULL, srn TEXT NOT NULL COLLATE NOCASE UNIQUE, password_hash TEXT NOT NULL, created_at TEXT NOT NULL)"); c.execute("INSERT INTO students VALUES (1,?,?,?,?)",("CLI Test Student","TESTSRN123",s.hex()+"$"+h,"2026-01-01T00:00:00+00:00")); c.commit(); c.close()'
+
 cd "$PROJECT_ROOT"
 mkdir -p logs
 
 run_cli() {
-    timeout --foreground "${TIMEOUT_SECONDS}s" "$APP"
+    { printf "TESTSRN123\\nTestPassword123\\n"; cat; } | CAMPUSCOMPUTE_AUTH_DB="$AUTH_DB" timeout --foreground "${TIMEOUT_SECONDS}s" "$APP"
 }
 
 echo "======================================"
