@@ -67,7 +67,7 @@ For the full clean-checkout walkthrough, see [Ubuntu / WSL Setup](docs/UBUNTU_SE
 
 ## Documentation
 
-- [Ubuntu / WSL setup](docs/UBUNTU_SETUP.md) — prerequisites, clone, build, run, tests and cleanup.
+- [Ubuntu / WSL setup](docs/UBUNTU_SETUP.md) — prerequisites, clone, build, run, tests and cleanup.\n- [Command guide](docs/COMMAND_GUIDE.md) — copy-ready Ubuntu commands for the integrated CLI, FR6 Worker Failure, FR7 Resource Limits, tests and optional dashboard.
 - [User guide](docs/USER_GUIDE.md) — menu choices, input formats, algorithms and expected output.
 - [Troubleshooting](docs/TROUBLESHOOTING.md) — build, CLI, IPC, API and dashboard problems.
 - [Architecture](ARCHITECTURE.md) — components, responsibilities, data flow and integration boundaries.
