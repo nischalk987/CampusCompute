@@ -103,7 +103,7 @@ def health() -> dict:
         "service": "CampusCompute Local API",
         "engine_modules": {
             "jobs": "interactive-cli-only",
-            "scheduling": "interactive-cli-only",
+            "scheduling": "C-engine-api-enabled",
             "producer_consumer": "argv-enabled",
             "banker": "interactive-cli-only",
             "shared_memory": "api-enabled",
@@ -120,8 +120,10 @@ def modules() -> dict:
         "modules": [
             {"id": "jobs", "status": "implemented", "api": False,
              "reason": "FR1 currently exposes an interactive CLI rather than a structured request interface."},
-            {"id": "scheduling", "status": "implemented", "api": False,
-             "reason": "FR2 currently exposes an interactive CLI; run it directly for authoritative scheduling."},
+            {"id": "scheduling", "status": "implemented", "api": True,
+             "operation": "POST /api/scheduling",
+             "policies": ["FCFS", "Round Robin", "Priority", "SJF", "SRTF", "Multilevel Queue"],
+             "reason": "Runs the shared CampusCompute C scheduler library and returns timeline plus CT/TAT/WT metrics."},
             {"id": "producer", "status": "implemented", "api": True,
              "operation": "POST /api/producer-consumer?event_count=12"},
             {"id": "ipc", "status": "implemented", "api": True,
