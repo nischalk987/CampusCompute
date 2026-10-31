@@ -177,6 +177,74 @@ def producer_consumer(event_count: Annotated[int, Query(ge=1, le=100_000)] = 12)
         raise HTTPException(500, f"Unable to read C activity log: {exc}") from exc
 
 
+
+
+class SharedMemoryRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=255)
+
+
+_shared_memory_lock = threading.Lock()
+
+
+@app.post("/api/shared-memory")
+def shared_memory_exchange(payload: SharedMemoryRequest) -> dict:
+    """Exchange one message through the real POSIX shared-memory C executable."""
+    message = payload.message
+    if not message.strip():
+        raise HTTPException(422, "Message must contain at least one non-whitespace character.")
+    if len(message.encode("utf-8")) > 255:
+        raise HTTPException(422, "Message must be at most 255 UTF-8 bytes.")
+
+    executable = _executable(ENGINE_ROOT / "shared_memory" / "shared_memory")
+    # FR4 uses fixed POSIX object names; serialize requests to avoid collisions.
+    with _shared_memory_lock:
+        try:
+            writer = subprocess.Popen(
+                [str(executable), "writer", message],
+                cwd=REPO_ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, shell=False, env={**os.environ, "LC_ALL": "C"},
+            )
+        except OSError as exc:
+            raise HTTPException(503, f"Unable to start shared-memory writer: {exc}") from exc
+
+        try:
+            reader_result = _run_fixed(executable, ["reader"], timeout=15)
+            writer_stdout, writer_stderr = writer.communicate(timeout=15)
+        except subprocess.TimeoutExpired:
+            writer.kill()
+            writer.communicate()
+            raise HTTPException(504, "Shared-memory writer timed out waiting for reader acknowledgement.")
+        except HTTPException:
+            if writer.poll() is None:
+                writer.terminate()
+                try:
+                    writer.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    writer.kill()
+                    writer.wait()
+            writer.communicate()
+            raise
+
+        if writer.returncode != 0:
+            details = (writer_stderr or writer_stdout or "Writer did not receive acknowledgement.")[-2000:]
+            raise HTTPException(502, details.strip())
+
+    if f"message={message}" not in reader_result.stdout:
+        raise HTTPException(502, "Reader output did not contain the exact message sent by the writer.")
+    if "reader acknowledged the message" not in writer_stdout:
+        raise HTTPException(502, "Writer did not confirm the reader acknowledgement.")
+
+    return {
+        "status": "success",
+        "source": "C engine (POSIX shared memory + named semaphores)",
+        "sequence": 1,
+        "message_sent": message,
+        "message_received": message,
+        "acknowledged": True,
+        "writer_output": writer_stdout.strip(),
+        "reader_output": reader_result.stdout.strip(),
+    }
+
 # The terminal is intentionally restricted to local development commands. It never
 # invokes a shell, accepts shell operators, or allows its working directory outside
 # the repository. Keep Uvicorn bound to 127.0.0.1.
