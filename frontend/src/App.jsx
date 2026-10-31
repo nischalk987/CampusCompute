@@ -231,7 +231,7 @@ export default function App() {
     let changed = true;
     while(changed) { changed=false; for(let i=0;i<al.length;i++) if(!finished[i]&&need[i].every((v,j)=>v<=work[j])) { work.forEach((_,j)=>work[j]+=al[i][j]); finished[i]=true;seq.push(i);changed=true; } }
     setBankerResult({ safe: finished.every(Boolean), seq, need });
-    notify('Banker's safety check calculated from the entered matrices. Use the Ubuntu C executable for authoritative assessment evidence.');
+    notify("Banker's safety check calculated from the entered matrices. Use the Ubuntu C executable for authoritative assessment evidence.");
   }
 
 
