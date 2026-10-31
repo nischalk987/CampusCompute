@@ -8,7 +8,10 @@
 typedef enum {
     SCHED_FCFS = 0,
     SCHED_ROUND_ROBIN,
-    SCHED_PRIORITY
+    SCHED_PRIORITY,
+    SCHED_SJF,
+    SCHED_SRTF,
+    SCHED_MULTILEVEL_QUEUE
 } SchedulingPolicy;
 
 typedef struct {
@@ -31,10 +34,13 @@ typedef struct {
 
 const char *scheduling_policy_name(SchedulingPolicy policy);
 void schedule_result_destroy(ScheduleResult *result);
-/* Results' metric arrays follow input insertion order. FCFS ties: insertion order.
- * Priority: lower number wins, then earlier arrival, then insertion order.
- * Round Robin: FIFO; arrivals during a slice are enqueued before re-queueing
- * the unfinished running job.
+/* Lower numeric priority wins. Multilevel Queue uses three fixed queues:
+ * queue 0 (priority <= 0): foreground, RR quantum 2;
+ * queue 1 (priority == 1): interactive, RR quantum 4;
+ * queue 2 (priority >= 2): batch, FCFS.
+ * Strict queue priority applies; lower queues run only when higher queues are empty.
+ * SJF is non-preemptive; SRTF is preemptive. Equal remaining/burst times use
+ * earlier arrival, then input insertion order.
  */
 bool scheduler_run(const JobManager *manager, SchedulingPolicy policy,
                    unsigned int quantum, ScheduleResult *result,
