@@ -188,10 +188,21 @@ def producer_consumer(event_count: Annotated[int, Query(ge=1, le=100_000)] = 12)
 def worker_failure(scenario: Annotated[str, Query(pattern="^(normal|failure)$")] = "failure") -> dict:
     executable = _executable(ENGINE_ROOT / "process_manager" / "worker_failure_demo")
     result = _run_fixed(executable, [scenario])
+    # Normalize escaped line breaks from older compiled binaries as well as real newlines.
+    output = result.stdout.replace("\\n", "\n").strip()
+    output_lines = output.splitlines()
+    exit_code = next(
+        (int(line.split(":", 1)[1].strip()) for line in output_lines
+         if line.strip().startswith("Child exit code:")),
+        None,
+    )
+    child_reaped = any(line.strip() == "Parent reaped child: YES" for line in output_lines)
+    if exit_code is None or not child_reaped:
+        raise HTTPException(502, "Worker C engine returned an incomplete child-process report.")
     return {"status": "success", "source": "C engine (fork + waitpid)", "scenario": scenario,
-            "output": result.stdout.strip(),
-            "child_exit_code": next((int(line.split(":", 1)[1].strip()) for line in result.stdout.splitlines() if line.startswith("Child exit code:")), None),
-            "child_reaped": "Parent reaped child: YES" in result.stdout,
+            "output": output,
+            "child_exit_code": exit_code,
+            "child_reaped": child_reaped,
             "outcome": "expected_failure_observed" if scenario == "failure" else "normal_completion"}
 
 @app.post("/api/resource-limits")
