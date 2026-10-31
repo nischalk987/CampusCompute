@@ -107,8 +107,8 @@ def health() -> dict:
             "producer_consumer": "argv-enabled",
             "banker": "interactive-cli-only",
             "shared_memory": "api-enabled",
-            "worker_failure": "implemented-cli-only",
-            "resource_limits": "implemented-cli-only",
+            "worker_failure": "api-enabled",
+            "resource_limits": "api-enabled",
             "integrated_cli": "implemented",
         },
     }
@@ -129,8 +129,8 @@ def modules() -> dict:
              "reason": "Runs the POSIX shared-memory writer and reader processes and returns the acknowledged message."},
             {"id": "banker", "status": "implemented", "api": False,
              "reason": "FR5 currently exposes an interactive CLI rather than a structured request interface."},
-            {"id": "worker", "status": "not-implemented", "api": False},
-            {"id": "limits", "status": "not-implemented", "api": False},
+            {"id": "worker", "status": "implemented", "api": True, "operations": ["POST /api/worker-failure?scenario=normal", "POST /api/worker-failure?scenario=failure"]},
+            {"id": "limits", "status": "implemented", "api": True, "operation": "POST /api/resource-limits"},
             {"id": "terminal", "status": "local-restricted-terminal", "api": True,
              "operation": "POST /api/terminal/execute",
              "reason": "Executes allowlisted commands locally without shell operators or paths outside the repository."},
@@ -182,6 +182,42 @@ def producer_consumer(event_count: Annotated[int, Query(ge=1, le=100_000)] = 12)
         raise HTTPException(500, f"Unable to read C activity log: {exc}") from exc
 
 
+
+
+@app.post("/api/worker-failure")
+def worker_failure(scenario: Annotated[str, Query(pattern="^(normal|failure)$")] = "failure") -> dict:
+    executable = _executable(ENGINE_ROOT / "process_manager" / "worker_failure_demo")
+    result = _run_fixed(executable, [scenario])
+    return {"status": "success", "source": "C engine (fork + waitpid)", "scenario": scenario,
+            "output": result.stdout.strip(),
+            "child_exit_code": next((int(line.split(":", 1)[1].strip()) for line in result.stdout.splitlines() if line.startswith("Child exit code:")), None),
+            "child_reaped": "Parent reaped child: YES" in result.stdout,
+            "outcome": "expected_failure_observed" if scenario == "failure" else "normal_completion"}
+
+@app.post("/api/resource-limits")
+def resource_limits() -> dict:
+    executable = _executable(ENGINE_ROOT / "resource_limits" / "resource_limits_demo")
+    result = _run_fixed(executable, [])
+    values = {}
+    for line in result.stdout.splitlines():
+        if ":" in line:
+            key, value = line.split(":", 1)
+            values[key.strip().lower().replace(" ", "_")] = value.strip()
+    try:
+        opened = int(values["descriptors_opened"]); closed = int(values["descriptors_closed"])
+        applied = int(values["applied_soft_limit"]); original_soft = int(values["original_soft_limit"])
+        original_hard = int(values["original_hard_limit"])
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(502, "Resource-limit C engine returned an incomplete report.") from exc
+    exhausted = values.get("exhaustion_detected", "").startswith("YES")
+    cleaned = values.get("cleanup_successful", "").startswith("YES")
+    if not exhausted or not cleaned or opened != closed:
+        raise HTTPException(502, "Resource-limit C engine did not confirm exhaustion and complete cleanup.")
+    return {"status": "success", "source": "C engine (getrlimit/setrlimit + isolated fork)",
+            "original_soft_limit": original_soft, "original_hard_limit": original_hard,
+            "applied_soft_limit": applied, "descriptors_opened": opened,
+            "descriptors_closed": closed, "exhaustion_detected": exhausted,
+            "cleanup_successful": cleaned, "output": result.stdout.strip()}
 
 
 class SharedMemoryRequest(BaseModel):
