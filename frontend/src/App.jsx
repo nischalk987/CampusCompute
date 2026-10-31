@@ -86,6 +86,13 @@ function EmptyState({ icon: Icon = Database, title, text }) {
 }
 
 export default function App() {
+
+  const [authReady, setAuthReady] = useState(false);
+  const [student, setStudent] = useState(null);
+  const [authMode, setAuthMode] = useState('login');
+  const [authError, setAuthError] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem('campuscompute_token') || '');
   const [active, setActive] = useState('overview');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notice, setNotice] = useState('');
@@ -110,6 +117,16 @@ export default function App() {
   const [ipcResult, setIpcResult] = useState(null);
   const [ipcBusy, setIpcBusy] = useState(false);
 
+
+  useEffect(() => {
+    const token = localStorage.getItem('campuscompute_token');
+    if (!token) { setAuthReady(true); return; }
+    fetch(apiBase.replace(/\/$/, '') + '/api/auth/me', { headers: { Authorization: 'Bearer ' + token } })
+      .then(response => response.ok ? response.json() : Promise.reject(new Error('Session expired')))
+      .then(data => setStudent(data.student))
+      .catch(() => { localStorage.removeItem('campuscompute_token'); setAuthToken(''); setStudent(null); })
+      .finally(() => setAuthReady(true));
+  }, []);
   useEffect(() => {
     const handler = (event) => { if (event.detail) setActive(event.detail); };
     window.addEventListener('campuscompute-navigate', handler);
@@ -200,6 +217,24 @@ export default function App() {
     notify('Calculated in the browser preview. Verify results against the C Banker module for authoritative OS-project output.');
   }
 
+
+  async function submitAuth(form) {
+    setAuthBusy(true); setAuthError('');
+    try {
+      const endpoint = authMode === 'register' ? '/api/auth/register' : '/api/auth/login';
+      const response = await fetch(apiBase.replace(/\/$/, '') + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Authentication failed.');
+      localStorage.setItem('campuscompute_token', data.token); setAuthToken(data.token); setStudent(data.student);
+    } catch (error) { setAuthError(error.message); }
+    finally { setAuthBusy(false); }
+  }
+  async function logout() {
+    try { if (authToken) await fetch(apiBase.replace(/\/$/, '') + '/api/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + authToken } }); } catch {}
+    localStorage.removeItem('campuscompute_token'); setAuthToken(''); setStudent(null); setActive('overview');
+  }
+  if (!authReady) return <div className="auth-loading">Loading CampusCompute…</div>;
+  if (!student) return <AuthScreen mode={authMode} setMode={mode=>{setAuthMode(mode);setAuthError('');}} onSubmit={submitAuth} busy={authBusy} error={authError} />;
   const activeItem = active === 'overview' ? { label: 'Overview', description: 'A clear view of the operating-systems lab and its modules.' } : implemented[active];
   const currentStatus = active === 'overview' ? 'Workspace snapshot' : activeItem?.status;
   const supported = ['jobs','scheduling','producer','ipc','banker'].includes(active);
@@ -216,7 +251,7 @@ export default function App() {
       <div className="sidebar-bottom"><div className="environment-card"><div className="env-top"><span className="env-light"/><span>Environment</span><Badge tone="neutral">Local</Badge></div><p>Linux / Ubuntu / WSL</p><div className="env-note"><Terminal size={13}/> C engine runs locally</div></div><button className="profile-row" onClick={()=>notify('CampusCompute OS laboratory workspace. Project status percentages are not tracked yet.')}><div className="avatar">CC</div><div className="profile-text"><strong>OS Laboratory</strong><span>Student workspace</span></div><ChevronDown size={16}/></button></div>
     </aside>
     <main className="main-area">
-      <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Open navigation" onClick={()=>setMobileOpen(true)}><Menu size={20}/></button><div className="breadcrumb">Workspace <span>/</span> <strong>{activeItem?.label || 'Overview'}</strong></div></div><div className="topbar-actions"><div className="connection-pill"><span className={`muted-dot ${apiStatus === "connected" ? "muted-dot--connected" : ""}`}/>{apiStatus === "connected" ? "Local API connected" : apiStatus === "checking" ? "Checking local API…" : "Engine API not connected"}</div><button className="icon-button" title="Notifications" aria-label="Notifications" onClick={()=>notify('No notifications. The local engine/API is not connected yet.')}><Bell size={18}/></button><button className="help-button" onClick={()=>notify('Use each module screen to view its status, required inputs and the local run command.')}><CircleHelp size={17}/> Help</button></div></header>
+      <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Open navigation" onClick={()=>setMobileOpen(true)}><Menu size={20}/></button><div className="breadcrumb">Workspace <span>/</span> <strong>{activeItem?.label || 'Overview'}</strong></div></div><div className="topbar-actions"><div className="student-identity"><strong>{student.name}</strong><span>{student.srn}</span></div><button className="button button-quiet auth-logout" onClick={logout}>Log out</button><div className="connection-pill"><span className={`muted-dot ${apiStatus === "connected" ? "muted-dot--connected" : ""}`}/>{apiStatus === "connected" ? "Local API connected" : apiStatus === "checking" ? "Checking local API…" : "Engine API not connected"}</div><button className="icon-button" title="Notifications" aria-label="Notifications" onClick={()=>notify('No notifications. The local engine/API is not connected yet.')}><Bell size={18}/></button><button className="help-button" onClick={()=>notify('Use each module screen to view its status, required inputs and the local run command.')}><CircleHelp size={17}/> Help</button></div></header>
       <div className="page-wrap">
         {notice&&<div className="notice" role="status"><span><BadgeCheck size={17}/></span>{notice}<button aria-label="Dismiss notice" onClick={()=>setNotice('')}><X size={15}/></button></div>}
         {active==='overview' ? <Overview setPage={setPage} modules={moduleList} apiStatus={apiStatus} /> :
@@ -505,3 +540,38 @@ function TerminalPage({notify}) {
     <section className="panel"><PanelTitle eyebrow="START THE BACKEND" title="Ubuntu setup" subtitle="Run these commands from the CampusCompute repository root in Ubuntu and keep the server open."/></section>
   </div>;
 }
+
+
+function AuthScreen({ mode, setMode, onSubmit, busy, error }) {
+  const [form, setForm] = useState({ name: '', srn: '', password: '', confirmPassword: '' });
+  const register = mode === 'register';
+  function submit(event) {
+    event.preventDefault();
+    if (register && form.password !== form.confirmPassword) return;
+    onSubmit(register ? { name: form.name.trim(), srn: form.srn.trim(), password: form.password } : { srn: form.srn.trim(), password: form.password });
+  }
+  const inputStyle = { width: '100%', boxSizing: 'border-box', padding: '13px 14px', border: '1px solid #d9deea', borderRadius: 10, background: '#fff', color: '#182033', fontSize: 14 };
+  const labelStyle = { display: 'grid', gap: 7, color: '#35405a', fontSize: 13, fontWeight: 650 };
+  return <main className="auth-screen">
+    <section className="auth-card">
+      <div className="auth-brand"><div className="auth-brand-mark"><Blocks size={23}/></div><div><strong>CampusCompute</strong><span>OPERATING SYSTEMS LAB</span></div></div>
+      <div className="auth-heading"><div className="eyebrow">STUDENT WORKSPACE</div><h1>{register ? 'Create your account' : 'Welcome back'}<span className="title-period">.</span></h1><p>{register ? 'Register with your student details to access your OS laboratory dashboard.' : 'Sign in with your SRN to continue to your CampusCompute workspace.'}</p></div>
+      <div className="auth-tabs"><button className={!register?'auth-tab auth-tab--active':'auth-tab'} onClick={()=>setMode('login')} type="button">Login</button><button className={register?'auth-tab auth-tab--active':'auth-tab'} onClick={()=>setMode('register')} type="button">Register</button></div>
+      <form className="auth-form" onSubmit={submit}>
+        {register && <label style={labelStyle}>Full name<input style={inputStyle} autoComplete="name" placeholder="Enter your full name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} minLength={2} maxLength={80} required/></label>}
+        <label style={labelStyle}>Student SRN<input style={inputStyle} autoComplete="username" placeholder="Enter your SRN" value={form.srn} onChange={e=>setForm({...form,srn:e.target.value.toUpperCase()})} minLength={4} maxLength={32} required/></label>
+        <label style={labelStyle}>Password<input style={inputStyle} type="password" autoComplete={register?'new-password':'current-password'} placeholder="At least 8 characters" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} minLength={8} maxLength={128} required/></label>
+        {register && <label style={labelStyle}>Confirm password<input style={inputStyle} type="password" autoComplete="new-password" placeholder="Re-enter your password" value={form.confirmPassword} onChange={e=>setForm({...form,confirmPassword:e.target.value})} minLength={8} maxLength={128} required/></label>}
+        {register && form.confirmPassword && form.password !== form.confirmPassword && <p className="auth-error">Passwords do not match.</p>}
+        {error && <p className="auth-error" role="alert">{error}</p>}
+        <button className="button button-primary button-full auth-submit" type="submit" disabled={busy || (register && form.password !== form.confirmPassword)}>{busy?'Please wait…':register?'Create account':'Login to dashboard'}<ArrowRight size={16}/></button>
+      </form>
+      <p className="auth-footnote"><LockKeyhole size={14}/> Passwords are securely hashed in the local SQLite database.</p>
+    </section>
+    <div className="auth-side-note"><span>CAMPUSCOMPUTE / OS LAB</span><strong>Intelligent Job Scheduling<br/>and Resource Management</strong><p>A unified workspace for operating-systems experiments.</p></div>
+  </main>;
+}
+
+
+/* Student authentication screens */
+.auth-screen{min-height:100vh;display:grid;place-items:center;position:relative;padding:36px 20px;background:radial-gradient(circle at 15% 15%,#e9eaff 0,transparent 32%),linear-gradient(135deg,#f7f8fc,#eef1f9);color:#182033}.auth-card{width:min(100%,440px);background:#fff;border:1px solid #e7e9f1;border-radius:20px;padding:34px;box-shadow:0 24px 70px #1d285018}.auth-brand{display:flex;align-items:center;gap:12px}.auth-brand-mark{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:#625bd8;color:#fff}.auth-brand strong,.auth-brand span{display:block}.auth-brand strong{font-size:17px}.auth-brand span{font-size:9px;letter-spacing:1.4px;color:#81899d;margin-top:4px}.auth-heading{margin:34px 0 22px}.auth-heading h1{font-size:29px;letter-spacing:-1px;margin:8px 0}.auth-heading p{font-size:13px;line-height:1.6;color:#778096;margin:0}.auth-tabs{display:grid;grid-template-columns:1fr 1fr;background:#f1f2f8;padding:4px;border-radius:10px;margin-bottom:22px}.auth-tab{border:0;background:transparent;padding:10px;border-radius:8px;color:#687188;font-weight:650;cursor:pointer}.auth-tab--active{background:#fff;color:#4f49c6;box-shadow:0 2px 8px #1b245012}.auth-form{display:grid;gap:16px}.auth-submit{margin-top:4px;justify-content:center;gap:9px}.auth-error{margin:0;color:#bd3548;font-size:12px}.auth-footnote{display:flex;align-items:center;gap:8px;margin:20px 0 0;color:#81899a;font-size:11px;line-height:1.5}.auth-side-note{position:absolute;left:5vw;bottom:38px;color:#68718a}.auth-side-note span{font-size:9px;letter-spacing:1.6px}.auth-side-note strong{display:block;font-size:15px;line-height:1.5;margin-top:9px;color:#35405a}.auth-side-note p{font-size:11px}.auth-loading{min-height:100vh;display:grid;place-items:center;color:#596179;background:#f7f8fc}.student-identity{display:grid;gap:2px;text-align:right;margin-right:5px}.student-identity strong{font-size:12px;color:var(--text-primary,#20263a)}.student-identity span{font-size:10px;color:var(--text-muted,#81899a);letter-spacing:.4px}.auth-logout{font-size:11px!important;padding:8px 10px!important}@media(max-width:760px){.auth-side-note{display:none}.auth-card{padding:26px 22px}.student-identity{display:none}}
