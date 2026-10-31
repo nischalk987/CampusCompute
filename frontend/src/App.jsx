@@ -105,7 +105,10 @@ export default function App() {
   const [apiStatus, setApiStatus] = useState('checking');
   const [apiEvents, setApiEvents] = useState([]);
   const [apiSummary, setApiSummary] = useState('');
-  const [apiBusy, setApiBusy] = useState(false);\n  const [ipcMessage, setIpcMessage] = useState('Hello from CampusCompute');\n  const [ipcResult, setIpcResult] = useState(null);\n  const [ipcBusy, setIpcBusy] = useState(false);
+  const [apiBusy, setApiBusy] = useState(false);
+  const [ipcMessage, setIpcMessage] = useState('Hello from CampusCompute');
+  const [ipcResult, setIpcResult] = useState(null);
+  const [ipcBusy, setIpcBusy] = useState(false);
 
   useEffect(() => {
     const handler = (event) => { if (event.detail) setActive(event.detail); };
@@ -220,7 +223,17 @@ export default function App() {
           active==='jobs' ? <JobsPage jobs={jobs} setPage={setPage} form={jobForm} setForm={setJobForm} addJob={addJob} /> :
           active==='scheduling' ? <SchedulingPage jobs={jobs} policy={policy} setPolicy={setPolicy} quantum={quantum} setQuantum={setQuantum} schedule={schedule} runSchedule={runSchedule} /> :
           active==='banker' ? <BankerPage available={available} setAvailable={setAvailable} alloc={alloc} setAlloc={setAlloc} max={max} setMax={setMax} result={bankerResult} run={runBanker}/> :
-          active==='ipc' ? <SharedMemoryPage message={ipcMessage} setMessage={setIpcMessage} result={ipcResult} busy={ipcBusy} apiStatus={apiStatus} runApi={async () => {\n            setIpcBusy(true); setIpcResult(null);\n            try {\n              const response = await fetch(apiBase.replace(/\\/$/, '') + '/api/shared-memory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: ipcMessage }) });\n              const data = await response.json();\n              if (!response.ok) throw new Error(data.detail || 'Shared-memory exchange failed');\n              setIpcResult(data); notify('Shared-memory exchange completed and reader acknowledgement received.');\n            } catch (error) { notify('Shared-memory API failed: ' + error.message); }\n            finally { setIpcBusy(false); }\n          }}/> :\n          active==='producer' ? <ProducerPage count={pcCount} setCount={setPcCount} notify={notify} apiBase={apiBase} setApiBase={setApiBase} apiStatus={apiStatus} events={apiEvents} summary={apiSummary} busy={apiBusy} runApi={async () => {
+          active==='ipc' ? <SharedMemoryPage message={ipcMessage} setMessage={setIpcMessage} result={ipcResult} busy={ipcBusy} apiStatus={apiStatus} runApi={async () => {
+            setIpcBusy(true); setIpcResult(null);
+            try {
+              const response = await fetch(apiBase.replace(/\/$/, '') + '/api/shared-memory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: ipcMessage }) });
+              const data = await response.json();
+              if (!response.ok) throw new Error(data.detail || 'Shared-memory exchange failed');
+              setIpcResult(data); notify('Shared-memory exchange completed and reader acknowledgement received.');
+            } catch (error) { notify('Shared-memory API failed: ' + error.message); }
+            finally { setIpcBusy(false); }
+          }}/> :
+          active==='producer' ? <ProducerPage count={pcCount} setCount={setPcCount} notify={notify} apiBase={apiBase} setApiBase={setApiBase} apiStatus={apiStatus} events={apiEvents} summary={apiSummary} busy={apiBusy} runApi={async () => {
             setApiBusy(true); setApiEvents([]); setApiSummary('');
             try {
               const base = apiBase.replace(/\/$/, '');
