@@ -154,64 +154,115 @@ class ScheduleRequest(BaseModel):
 
 @app.post("/api/scheduling")
 def calculate_schedule(payload: ScheduleRequest) -> dict:
-    """Return scheduling output from the same C scheduler used by the CLI."""
-    executable = _executable(ENGINE_ROOT / "scheduler" / "cpu_scheduler")
-    # The CLI has a stable interactive contract. Send the selected policy and
-    # the validated job rows through stdin, then parse its labelled result.
-    policy_choices = {
-        "FCFS": "2", "Round Robin": "3", "Priority": "4",
-        "SJF": "5", "SRTF": "6", "Multilevel Queue": "7",
-    }
-    lines = [str(len(payload.jobs))]
-    for job in payload.jobs:
-        lines.extend([job.id, str(job.arrival), str(job.burst), str(job.priority)])
-    lines.append(policy_choices[payload.policy])
-    if payload.policy == "Round Robin":
-        lines.append(str(payload.quantum))
-    script = "\n".join(lines) + "\n"
+    """Run a selected algorithm through the real C scheduler library."""
+    import ctypes
+
+    class CJob(ctypes.Structure):
+        _fields_ = [
+            ("id", ctypes.c_char * 32),
+            ("arrival_time", ctypes.c_uint),
+            ("burst_time", ctypes.c_uint),
+            ("remaining_time", ctypes.c_uint),
+            ("completion_time", ctypes.c_uint),
+            ("priority", ctypes.c_int),
+            ("status", ctypes.c_int),
+        ]
+
+    class CJobManager(ctypes.Structure):
+        _fields_ = [("jobs", ctypes.POINTER(CJob)), ("count", ctypes.c_size_t),
+                    ("capacity", ctypes.c_size_t)]
+
+    class CScheduleSlice(ctypes.Structure):
+        _fields_ = [("job_id", ctypes.c_char * 32),
+                    ("start_time", ctypes.c_uint), ("end_time", ctypes.c_uint)]
+
+    class CScheduleResult(ctypes.Structure):
+        _fields_ = [
+            ("slices", ctypes.POINTER(CScheduleSlice)), ("slice_count", ctypes.c_size_t),
+            ("completion_times", ctypes.POINTER(ctypes.c_uint)),
+            ("turnaround_times", ctypes.POINTER(ctypes.c_uint)),
+            ("waiting_times", ctypes.POINTER(ctypes.c_uint)),
+            ("job_count", ctypes.c_size_t), ("average_turnaround", ctypes.c_double),
+            ("average_waiting", ctypes.c_double), ("total_time", ctypes.c_uint),
+        ]
+
+    source = ENGINE_ROOT / "scheduler"
+    job_source = ENGINE_ROOT / "job_manager"
+    build_dir = REPO_ROOT / "engine" / "build"
+    build_dir.mkdir(parents=True, exist_ok=True)
+    library = build_dir / "libcampuscompute_scheduler.so"
+    compiler = shutil.which("gcc")
+    if not compiler:
+        raise HTTPException(503, "GCC is required to build the CPU scheduling library.")
     try:
-        result = subprocess.run(
-            [str(executable)], input=script, capture_output=True, text=True,
-            cwd=REPO_ROOT, timeout=15, check=False,
+        built = subprocess.run(
+            [compiler, "-std=c11", "-Wall", "-Wextra", "-Wpedantic", "-Werror",
+             "-O2", "-fPIC", "-shared",
+             "-I" + str(source / "include"), "-I" + str(job_source / "include"),
+             str(source / "src" / "scheduler.c"),
+             str(job_source / "src" / "job_manager.c"), "-lm", "-o", str(library)],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=45, check=False,
             env={**os.environ, "LC_ALL": "C"},
         )
     except subprocess.TimeoutExpired:
-        raise HTTPException(504, "CPU scheduler exceeded the execution time limit.")
-    if result.returncode != 0:
-        details = (result.stderr or result.stdout or "CPU scheduling failed")[-2000:]
-        raise HTTPException(422, details.strip())
+        raise HTTPException(504, "Building the scheduling library timed out.")
+    if built.returncode != 0:
+        raise HTTPException(503, "Unable to build CPU scheduler library: " +
+                            (built.stderr or built.stdout)[-2000:])
 
-    output = result.stdout
-    # The interactive interface writes prompts and the selected schedule to
-    # stdout. Parse only the section starting at the selected policy heading.
-    heading = f"=== { {'FCFS':'FCFS','Round Robin':'Round Robin','Priority':'Non-preemptive Priority','SJF':'Shortest Job First (SJF)','SRTF':'Shortest Remaining Time First (SRTF)','Multilevel Queue':'Multilevel Queue'}[payload.policy] } Scheduling ==="
-    start = output.find(heading)
-    if start < 0:
-        raise HTTPException(502, "C scheduler did not return the expected result heading.")
-    section = output[start:]
-    import re
-    slices = []
-    rows = []
-    for match in re.finditer(r"\[(\d+)\s*-\s*(\d+)\]\s+([A-Za-z][A-Za-z0-9_-]{0,30})", section):
-        slices.append({"id": match.group(3), "start": int(match.group(1)), "end": int(match.group(2))})
-    for match in re.finditer(r"^([A-Za-z][A-Za-z0-9_-]{0,30})\s+(\d+)\s+(\d+)\s+(\d+)\s*$", section, re.MULTILINE):
-        jid, completion, turnaround, waiting = match.groups()
-        original = next(job for job in payload.jobs if job.id == jid)
-        rows.append({**original.model_dump(), "completion": int(completion),
-                     "turnaround": int(turnaround), "waiting": int(waiting)})
-    if len(rows) != len(payload.jobs) or not slices:
-        raise HTTPException(502, "Could not parse the complete C scheduler result.")
-    makespan_match = re.search(r"Makespan:\s+(\d+)", section)
-    if not makespan_match:
-        raise HTTPException(502, "C scheduler result is missing its makespan.")
-    rows.sort(key=lambda item: item["id"])
-    return {
-        "status": "success", "source": "CampusCompute C scheduler",
-        "policy": payload.policy, "rows": rows, "timeline": slices,
-        "avgWaiting": sum(row["waiting"] for row in rows) / len(rows),
-        "avgTurnaround": sum(row["turnaround"] for row in rows) / len(rows),
-        "makespan": int(makespan_match.group(1)),
-    }
+    try:
+        lib = ctypes.CDLL(str(library))
+        lib.scheduler_run.argtypes = [ctypes.POINTER(CJobManager), ctypes.c_int,
+                                      ctypes.c_uint, ctypes.POINTER(CScheduleResult),
+                                      ctypes.c_char_p, ctypes.c_size_t]
+        lib.scheduler_run.restype = ctypes.c_bool
+        lib.schedule_result_destroy.argtypes = [ctypes.POINTER(CScheduleResult)]
+        lib.scheduling_policy_name.argtypes = [ctypes.c_int]
+        lib.scheduling_policy_name.restype = ctypes.c_char_p
+
+        job_array = (CJob * len(payload.jobs))()
+        for i, item in enumerate(payload.jobs):
+            job_array[i].id = item.id.encode("utf-8")
+            job_array[i].arrival_time = item.arrival
+            job_array[i].burst_time = item.burst
+            job_array[i].remaining_time = item.burst
+            job_array[i].priority = item.priority
+            job_array[i].status = 0
+        manager = CJobManager(job_array, len(payload.jobs), len(payload.jobs))
+        policy_ids = {"FCFS": 0, "Round Robin": 1, "Priority": 2,
+                      "SJF": 3, "SRTF": 4, "Multilevel Queue": 5}
+        policy_id = policy_ids[payload.policy]
+        result = CScheduleResult()
+        error = ctypes.create_string_buffer(256)
+        ok = lib.scheduler_run(ctypes.byref(manager), policy_id, payload.quantum,
+                               ctypes.byref(result), error, ctypes.sizeof(error))
+        if not ok:
+            raise HTTPException(422, error.value.decode("utf-8", errors="replace") or "Scheduling failed.")
+        try:
+            timeline = []
+            for i in range(result.slice_count):
+                item = result.slices[i]
+                timeline.append({"id": item.job_id.decode("utf-8"),
+                                 "start": int(item.start_time), "end": int(item.end_time)})
+            rows = []
+            for i, item in enumerate(payload.jobs):
+                rows.append({**item.model_dump(),
+                             "completion": int(result.completion_times[i]),
+                             "turnaround": int(result.turnaround_times[i]),
+                             "waiting": int(result.waiting_times[i])})
+            return {
+                "status": "success", "source": "CampusCompute C scheduler library",
+                "policy": payload.policy, "rows": rows, "timeline": timeline,
+                "avgWaiting": float(result.average_waiting),
+                "avgTurnaround": float(result.average_turnaround),
+                "makespan": int(result.total_time),
+            }
+        finally:
+            lib.schedule_result_destroy(ctypes.byref(result))
+    except HTTPException:
+        raise
+    except (OSError, AttributeError, ValueError) as exc:
+        raise HTTPException(503, f"Unable to load or execute CPU scheduler library: {exc}") from exc
 
 @app.post("/api/producer-consumer")
 def producer_consumer(event_count: Annotated[int, Query(ge=1, le=100_000)] = 12) -> dict:
