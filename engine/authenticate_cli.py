@@ -27,7 +27,7 @@ def main() -> int:
         return 2
 
     srn = sys.argv[1].strip().upper()
-    password = sys.stdin.readline().rstrip("\\r\\n")
+    password = sys.stdin.readline().rstrip("\r\n")
     if not srn or not password:
         print("Missing SRN or password.", file=sys.stderr)
         return 1
