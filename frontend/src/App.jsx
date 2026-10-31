@@ -13,8 +13,8 @@ const implemented = {
   producer: { label: 'Producer–Consumer', group: 'Concurrency', icon: Activity, status: 'Implemented', description: 'Run the POSIX thread queue and inspect event logs.' },
   ipc: { label: 'Shared Memory IPC', group: 'Concurrency', icon: Database, status: 'Implemented', description: 'Exchange messages through POSIX shared memory and semaphore synchronization.' },
   banker: { label: "Banker's Algorithm", group: 'Resource Management', icon: ShieldCheck, status: 'Implemented', description: 'Evaluate resource allocation safety and safe sequences.' },
-  worker: { label: 'Worker Failure', group: 'Resource Management', icon: Users, status: 'Not implemented', description: 'Observe child-process completion and controlled failure.' },
-  limits: { label: 'Resource Limits', group: 'Resource Management', icon: Gauge, status: 'Not implemented', description: 'Demonstrate supported OS resource limits and cleanup.' },
+  worker: { label: 'Worker Failure', group: 'Resource Management', icon: Users, status: 'Implemented', description: 'Observe child-process completion and controlled failure.' },
+  limits: { label: 'Resource Limits', group: 'Resource Management', icon: Gauge, status: 'Implemented', description: 'Demonstrate supported OS resource limits and cleanup.' },
   terminal: { label: 'Terminal / CLI', group: 'Workspace', icon: Terminal, status: 'CLI available', description: 'Run documented engine commands in your local Linux terminal.' }
 };
 
@@ -114,6 +114,9 @@ export default function App() {
   const [ipcMessage, setIpcMessage] = useState('Hello from CampusCompute');
   const [ipcResult, setIpcResult] = useState(null);
   const [ipcBusy, setIpcBusy] = useState(false);
+  const [workerResult, setWorkerResult] = useState(null);
+  const [limitsResult, setLimitsResult] = useState(null);
+  const [resourceBusy, setResourceBusy] = useState(false);
 
 
   useEffect(() => {
@@ -254,7 +257,7 @@ export default function App() {
   if (!student) return <AuthScreen mode={authMode} setMode={mode=>{setAuthMode(mode);setAuthError('');}} onSubmit={submitAuth} busy={authBusy} error={authError} />;
   const activeItem = active === 'overview' ? { label: 'Overview', description: 'A clear view of the operating-systems lab and its modules.' } : implemented[active];
   const currentStatus = active === 'overview' ? 'Workspace snapshot' : activeItem?.status;
-  const supported = ['jobs','scheduling','producer','ipc','banker'].includes(active);
+  const supported = ['jobs','scheduling','producer','ipc','banker','worker','limits'].includes(active);
 
   return <div className="app-shell">
     {mobileOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={()=>setMobileOpen(false)} />}
@@ -297,6 +300,18 @@ export default function App() {
             } catch (error) {
               notify('API run failed: ' + error.message + '. Check the local API and input.');
             } finally { setApiBusy(false); }
+          }}/> :
+          active==='worker' ? <WorkerFailurePage apiBase={apiBase} apiStatus={apiStatus} result={workerResult} busy={resourceBusy} run={async scenario => {
+            setResourceBusy(true); setWorkerResult(null);
+            try { const response=await fetch(apiBase.replace(/\/$/,'')+'/api/worker-failure?scenario='+scenario,{method:'POST'}); const data=await response.json(); if(!response.ok) throw new Error(data.detail||'Worker experiment failed'); setWorkerResult(data); notify('C engine completed the worker-process experiment.'); }
+            catch(error){notify('Worker failure run failed: '+error.message);}
+            finally{setResourceBusy(false);}
+          }}/> :
+          active==='limits' ? <ResourceLimitsPage apiBase={apiBase} apiStatus={apiStatus} result={limitsResult} busy={resourceBusy} run={async () => {
+            setResourceBusy(true); setLimitsResult(null);
+            try { const response=await fetch(apiBase.replace(/\/$/,'')+'/api/resource-limits',{method:'POST'}); const data=await response.json(); if(!response.ok) throw new Error(data.detail||'Resource-limit experiment failed'); setLimitsResult(data); notify('C engine verified descriptor exhaustion and cleanup.'); }
+            catch(error){notify('Resource-limits run failed: '+error.message);}
+            finally{setResourceBusy(false);}
           }}/> :
           active==='terminal' ? <TerminalPage notify={notify}/> :
           <UnavailablePage item={activeItem} />}
@@ -399,6 +414,42 @@ function BankerPage({available,setAvailable,alloc,setAlloc,max,setMax,result,run
       <ResourceAllocationGraph allocation={allocationRows.map(row=>row.map(Number))} need={result.need}/>
       <p className="banker-source-note">The dashboard graph uses Resource → Process for allocated instances and Process → Resource for remaining need claims. Verify the same state in the Ubuntu C CLI with <code>./engine/src/banker/banker</code>.</p>
     </> : <section className="panel banker-empty"><div className="banker-empty-icon"><BarChart3 size={22}/></div><div><strong>Your safety analysis and graph will appear here</strong><p>Enter the resource tables and select <b>Run safety algorithm</b>.</p></div></section>}
+  </div>;
+}
+
+
+function WorkerFailurePage({apiBase,apiStatus,result,busy,run}) {
+  return <div className="page-enter">
+    <PageHeading eyebrow="RESOURCE MANAGEMENT / FR6" title="Worker Failure" subtitle="Spawn a child worker, observe normal completion or a controlled failure, and verify that the parent reaps the child."/>
+    <div className="status-banner status-banner--teal"><div className="status-banner-icon"><Users size={19}/></div><div className="status-banner-copy"><strong>Real fork() + waitpid() experiment</strong><span>The dashboard invokes the C process-manager executable. The failure case exits with code 42 intentionally; it is not a crash of the dashboard or API.</span></div><Badge tone={apiStatus==='connected'?'success':'danger'}>{apiStatus==='connected'?'API connected':'API disconnected'}</Badge></div>
+    <div className="content-grid">
+      <section className="panel"><PanelTitle eyebrow="RUN CONFIGURATION" title="Worker scenarios" subtitle="Choose how the child process should finish."/>
+        <div className="form-stack"><button className="button button-primary button-full" disabled={busy||apiStatus!=='connected'} onClick={()=>run('normal')}>{busy?<RefreshCw size={16}/>:<Play size={16}/>} Run normal completion</button>
+        <button className="button button-secondary button-full" disabled={busy||apiStatus!=='connected'} onClick={()=>run('failure')}>{busy?<RefreshCw size={16}/>:<AlertTriangle size={16}/>} Simulate controlled worker failure</button>
+        <p className="footnote">API: <code>{apiBase}/api/worker-failure</code></p>
+        {apiStatus!=='connected'&&<p className="footnote">Start FastAPI in Ubuntu to enable execution.</p>}</div>
+      </section>
+      <section className="panel"><PanelTitle eyebrow="PROCESS REPORT" title="Child lifecycle" subtitle={result?'Returned by the C process manager':'Run a scenario to inspect the child process report.'} action={result?<Badge tone="success">C engine</Badge>:null}/>
+        {result?<><div className="stats-grid stats-grid--three"><StatCard icon={Users} label="Child reaped" value={result.child_reaped?'Yes':'No'} foot="waitpid() confirmation" tone="teal"/><StatCard icon={AlertTriangle} label="Exit code" value={result.child_exit_code??'—'} foot={result.scenario==='failure'?'Expected controlled failure':'Normal completion'} tone="purple"/><StatCard icon={BadgeCheck} label="Scenario" value={result.scenario==='failure'?'Failure':'Normal'} foot={result.outcome.replaceAll('_',' ')} tone="indigo"/></div><pre className="terminal-line terminal-line--output">{result.output}</pre></>:<EmptyState icon={Users} title="No worker run yet" text="Run normal completion and controlled failure to compare child exit status and parent cleanup."/></>}
+      </section>
+    </div>
+    <section className="panel"><PanelTitle eyebrow="BUILD & TEST" title="Ubuntu CLI" subtitle="Build and test the same C module independently."/><CodeLine>make -C engine/src/process_manager clean test all</CodeLine><CodeLine>./engine/src/process_manager/worker_failure_demo normal</CodeLine><CodeLine>./engine/src/process_manager/worker_failure_demo failure</CodeLine></section>
+  </div>;
+}
+
+function ResourceLimitsPage({apiBase,apiStatus,result,busy,run}) {
+  return <div className="page-enter">
+    <PageHeading eyebrow="RESOURCE MANAGEMENT / FR7" title="Resource Limits" subtitle="Apply RLIMIT_NOFILE in an isolated child, trigger file-descriptor exhaustion, and verify safe cleanup."/>
+    <div className="status-banner status-banner--teal"><div className="status-banner-icon"><Gauge size={19}/></div><div className="status-banner-copy"><strong>Real getrlimit() + setrlimit() experiment</strong><span>The C engine lowers the child process soft descriptor limit, opens /dev/null until EMFILE, closes every descriptor, and leaves the parent limits unchanged.</span></div><Badge tone={apiStatus==='connected'?'success':'danger'}>{apiStatus==='connected'?'API connected':'API disconnected'}</Badge></div>
+    <div className="content-grid">
+      <section className="panel"><PanelTitle eyebrow="RUN CONFIGURATION" title="Descriptor limit experiment" subtitle="The demonstration runs in a child process so the dashboard/API process limits are not modified."/>
+        <div className="form-stack"><button className="button button-primary button-full" disabled={busy||apiStatus!=='connected'} onClick={run}>{busy?<RefreshCw size={16}/>:<Play size={16}/>} Run resource-limit experiment</button><p className="footnote">API: <code>{apiBase}/api/resource-limits</code></p>{apiStatus!=='connected'&&<p className="footnote">Start FastAPI in Ubuntu to enable execution.</p>}</div>
+      </section>
+      <section className="panel"><PanelTitle eyebrow="ENGINE REPORT" title="Limit and cleanup results" subtitle={result?'Verified values returned by the C executable':'No resource-limit run yet.'} action={result?<Badge tone="success">C engine</Badge>:null}/>
+        {result?<><div className="stats-grid stats-grid--three"><StatCard icon={Gauge} label="Applied soft limit" value={result.applied_soft_limit} foot="RLIMIT_NOFILE" tone="indigo"/><StatCard icon={HardDrive} label="Descriptors opened" value={result.descriptors_opened} foot="Until EMFILE" tone="teal"/><StatCard icon={Check} label="Descriptors closed" value={result.descriptors_closed} foot="All opened descriptors" tone="purple"/></div><div className="summary-strip"><Check size={16}/><code>EMFILE detected · cleanup successful · parent limits unchanged</code></div><pre className="terminal-line terminal-line--output">{result.output}</pre></>:<EmptyState icon={Gauge} title="No limit experiment yet" text="Run the experiment to see original/applied limits, exhaustion detection and cleanup counts."/></>}
+      </section>
+    </div>
+    <section className="panel"><PanelTitle eyebrow="BUILD & TEST" title="Ubuntu CLI" subtitle="Run the FR7 executable and unit tests directly."/><CodeLine>make -C engine/src/resource_limits clean test all</CodeLine><CodeLine>./engine/src/resource_limits/resource_limits_demo</CodeLine></section>
   </div>;
 }
 
