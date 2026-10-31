@@ -25,11 +25,36 @@ def test_module_capabilities_are_explicit():
     modules = {module["id"]: module for module in response.json()["modules"]}
     assert modules["producer"]["api"] is True
     assert modules["jobs"]["api"] is False
-    assert modules["scheduling"]["api"] is False
+    assert modules["scheduling"]["api"] is True
+    assert modules["scheduling"]["operation"] == "POST /api/scheduling"
+    assert modules["scheduling"]["policies"] == ["FCFS", "Round Robin", "Priority", "SJF", "SRTF", "Multilevel Queue"]
     assert modules["banker"]["api"] is False
     assert modules["ipc"]["status"] == "implemented"
     assert modules["ipc"]["api"] is True
     assert modules["ipc"]["operation"] == "POST /api/shared-memory"
+
+
+def test_scheduling_api_uses_c_scheduler_and_returns_metrics():
+    response = client.post("/api/scheduling", json={
+        "policy": "SJF",
+        "jobs": [
+            {"id": "A", "arrival": 0, "burst": 7, "priority": 1},
+            {"id": "B", "arrival": 2, "burst": 4, "priority": 1},
+            {"id": "C", "arrival": 4, "burst": 1, "priority": 1},
+        ],
+    })
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["source"] == "CampusCompute C scheduler"
+    assert body["policy"] == "SJF"
+    assert body["timeline"] == [
+        {"id": "A", "start": 0, "end": 7},
+        {"id": "C", "start": 7, "end": 8},
+        {"id": "B", "start": 8, "end": 12},
+    ]
+    assert [row["completion"] for row in body["rows"]] == [7, 12, 8]
+    assert [row["turnaround"] for row in body["rows"]] == [7, 10, 4]
+    assert [row["waiting"] for row in body["rows"]] == [0, 6, 3]
 
 
 def test_producer_rejects_count_out_of_range():
