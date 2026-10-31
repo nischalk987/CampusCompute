@@ -67,7 +67,9 @@ For the full clean-checkout walkthrough, see [Ubuntu / WSL Setup](docs/UBUNTU_SE
 
 ## Documentation
 
-- [Ubuntu / WSL setup](docs/UBUNTU_SETUP.md) — prerequisites, clone, build, run, tests and cleanup.\n- [Command guide](docs/COMMAND_GUIDE.md) — copy-ready Ubuntu commands for the integrated CLI, FR6 Worker Failure, FR7 Resource Limits, tests and optional dashboard.
+- [Evidence screenshot checklist](docs/EVIDENCE_SCREENSHOT_CHECKLIST.md) — all 24 required S01–S24 evidence items, captions, SRN prompt rules, and PDF/ZIP submission rules.
+- [Ubuntu / WSL setup](docs/UBUNTU_SETUP.md) — prerequisites, clone, build, run, tests and cleanup.
+- [Command guide](docs/COMMAND_GUIDE.md) — copy-ready Ubuntu commands for the integrated CLI, FR6 Worker Failure, FR7 Resource Limits, tests and optional dashboard.
 - [User guide](docs/USER_GUIDE.md) — menu choices, input formats, algorithms and expected output.
 - [Troubleshooting](docs/TROUBLESHOOTING.md) — build, CLI, IPC, API and dashboard problems.
 - [Architecture](ARCHITECTURE.md) — components, responsibilities, data flow and integration boundaries.
@@ -82,16 +84,17 @@ CampusCompute/
 │   ├── src/
 │   │   ├── main.c                 # Integrated FR1–FR8 CLI
 │   │   ├── job_manager/           # FR1
-│   │   ├── scheduler/             # FR2
-│   │   ├── producer_consumer/     # FR3
-│   │   ├── shared_memory/         # FR4
-│   │   ├── banker/                # FR5
-│   │   ├── process_manager/       # FR6
-│   │   └── resource_limits/       # FR7
+│   │   ├── scheduler/              # FR2
+│   │   ├── producer_consumer/      # FR3
+│   │   ├── shared_memory/          # FR4
+│   │   ├── banker/                 # FR5
+│   │   ├── process_manager/        # FR6
+│   │   └── resource_limits/        # FR7
 │   └── Makefile
 ├── backend/                      # Optional FastAPI local adapter
 ├── frontend/                     # Optional React + Vite dashboard
 ├── docs/
+│   ├── EVIDENCE_SCREENSHOT_CHECKLIST.md
 │   ├── UBUNTU_SETUP.md
 │   ├── USER_GUIDE.md
 │   └── TROUBLESHOOTING.md
