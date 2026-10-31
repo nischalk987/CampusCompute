@@ -341,8 +341,8 @@ static bool enter_jobs(JobManager *manager)
         if (!read_line("Job ID: ", id, sizeof(id)) ||
             !read_number("Arrival time: ", &arrival, 0, UINT_MAX) ||
             !read_number("CPU burst: ", &burst, 1, UINT_MAX) ||
-            !read_number("Priority: ", &priority,
-                         -1000000, 1000000)) {
+            !read_number("Priority / MLQ queue class (0=foreground, 1=interactive, 2+=batch): ",
+                         &priority, -1000000, 1000000)) {
             return false;
         }
 
