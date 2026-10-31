@@ -4,13 +4,18 @@ CPPFLAGS ?= -Iinclude
 
 .PHONY: all clean test
 
-all: tests/test_process_manager
+all: worker_failure_demo tests/test_process_manager
+
+worker_failure_demo: src/main.c src/process_manager.c include/process_manager.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ src/main.c src/process_manager.c
 
 tests/test_process_manager: tests/test_process_manager.c src/process_manager.c include/process_manager.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ tests/test_process_manager.c src/process_manager.c
 
-test: tests/test_process_manager
+test: tests/test_process_manager worker_failure_demo
 	./tests/test_process_manager
+	./worker_failure_demo normal
+	./worker_failure_demo failure
 
 clean:
-	rm -f tests/test_process_manager
+	rm -f worker_failure_demo tests/test_process_manager
