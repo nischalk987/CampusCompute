@@ -9,7 +9,7 @@ import {
 
 const implemented = {
   jobs: { label: 'Jobs & Processes', group: 'Core OS', icon: Layers3, status: 'Implemented', description: 'Create validated jobs and track their lifecycle.' },
-  scheduling: { label: 'CPU Scheduling', group: 'Core OS', icon: Cpu, status: 'Implemented', description: 'Compare FCFS, Round Robin and non-preemptive Priority.' },
+  scheduling: { label: 'CPU Scheduling', group: 'Core OS', icon: Cpu, status: 'Implemented', description: 'Run FCFS, Round Robin, Priority, SJF, SRTF and Multilevel Queue.' },
   producer: { label: 'Producer–Consumer', group: 'Concurrency', icon: Activity, status: 'Implemented', description: 'Run the POSIX thread queue and inspect event logs.' },
   ipc: { label: 'Shared Memory IPC', group: 'Concurrency', icon: Database, status: 'Implemented', description: 'Exchange messages through POSIX shared memory and semaphore synchronization.' },
   banker: { label: "Banker's Algorithm", group: 'Resource Management', icon: ShieldCheck, status: 'Implemented', description: 'Evaluate resource allocation safety and safe sequences.' },
@@ -186,39 +186,25 @@ export default function App() {
     setSchedule(null);
     notify(`Job ${id} added. Open CPU Scheduling to calculate with the current job set.`);
   }
-  function runSchedule() {
-    const sorted = [...jobs].sort((a, b) => a.arrival - b.arrival || a.id.localeCompare(b.id));
-    if (!sorted.length) return notify('Add at least one job before scheduling.');
+  async function runSchedule() {
+    if (!jobs.length) return notify('Add at least one job before scheduling.');
     if (policy === 'Round Robin' && (!Number.isInteger(Number(quantum)) || Number(quantum) <= 0 || Number(quantum) > 100000)) return notify('Round Robin quantum must be a positive integer.');
-    let time = 0, remaining = Object.fromEntries(sorted.map(j => [j.id, j.burst])), done = new Set(), rows = [], timeline = [];
-    const q = Number(quantum);
-    if (policy === 'FCFS' || policy === 'Priority') {
-      let pending = [...sorted];
-      while (pending.length) {
-        const ready = pending.filter(j => j.arrival <= time);
-        if (!ready.length) { time = pending[0].arrival; continue; }
-        ready.sort((a,b) => policy === 'Priority' ? a.priority-b.priority || a.arrival-b.arrival || a.id.localeCompare(b.id) : a.arrival-b.arrival || a.id.localeCompare(b.id));
-        const job = ready[0];
-        const start = time; time += job.burst;
-        timeline.push({ id: job.id, start, end: time });
-        rows.push({ ...job, start, completion: time, turnaround: time - job.arrival, waiting: time - job.arrival - job.burst });
-        pending = pending.filter(j => j.id !== job.id);
-      }
-    } else {
-      let queue = [], pending = [...sorted], guard = 0;
-      while (rows.length < sorted.length && guard++ < 100000) {
-        while (pending.length && pending[0].arrival <= time) queue.push(pending.shift());
-        if (!queue.length) { if (pending.length) { time = pending[0].arrival; continue; } break; }
-        const job = queue.shift(), run = Math.min(q, remaining[job.id]), start = time;
-        time += run; remaining[job.id] -= run; timeline.push({ id: job.id, start, end: time });
-        while (pending.length && pending[0].arrival <= time) queue.push(pending.shift());
-        if (remaining[job.id] > 0) queue.push(job);
-        else rows.push({ ...job, completion: time, turnaround: time - job.arrival, waiting: time - job.arrival - job.burst });
-      }
+    try {
+      const response = await fetch(apiBase.replace(/\/$/, '') + '/api/scheduling', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          policy, quantum: Number(quantum),
+          jobs: jobs.map(job => ({ id: job.id, arrival: job.arrival, burst: job.burst, priority: job.priority }))
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'CPU scheduling failed.');
+      setSchedule(data);
+      notify('Scheduling calculated by the CampusCompute C engine.');
+    } catch (error) {
+      notify('CPU scheduling API failed: ' + error.message);
     }
-    rows.sort((a,b) => a.id.localeCompare(b.id));
-    setSchedule({ policy, rows, timeline, avgWaiting: rows.reduce((s,j)=>s+j.waiting,0)/rows.length, avgTurnaround: rows.reduce((s,j)=>s+j.turnaround,0)/rows.length });
-    notify('Scheduling calculated from the jobs currently entered in this interactive workspace.');
   }
   function runBanker(event) {
     event.preventDefault();
@@ -346,7 +332,52 @@ function JobsPage({jobs,setPage,form,setForm,addJob}) {
   return <div className="page-enter"><PageHeading eyebrow="CORE OS / FR1" title="Jobs & Processes" subtitle="Create jobs, validate fields and inspect the process lifecycle data model."/><div className="stats-grid stats-grid--three"><StatCard icon={Layers3} label="Jobs in workspace" value={jobs.length} foot="Current editable workspace" tone="indigo"/><StatCard icon={Clock3} label="Total CPU burst" value={jobs.reduce((s,j)=>s+j.burst,0)} foot="Time units from entered jobs" tone="teal"/><StatCard icon={ListTodo} label="Lifecycle source" value="C engine" foot="Authoritative lifecycle uses FR1" tone="purple"/></div><div className="content-grid"><section className="panel"><PanelTitle eyebrow="JOB REGISTER" title="Job records" subtitle="Add jobs here, then use CPU Scheduling to run an interactive calculation."/><div className="table-scroll"><table><thead><tr><th>Job ID</th><th>Arrival</th><th>Burst</th><th>Priority</th><th>State</th></tr></thead><tbody>{jobs.map(j=><tr key={j.id}><td><span className="job-id">{j.id}</span></td><td>{j.arrival}</td><td>{j.burst}</td><td>{j.priority}</td><td><Badge tone="info">Workspace</Badge></td></tr>)}</tbody></table></div></section><section className="panel"><PanelTitle eyebrow="NEW RECORD" title="Add a job" subtitle="Enter process details to add a job to the current workspace."/><form className="form-stack" onSubmit={addJob}><Field label="Job ID"><input required maxLength="12" placeholder="e.g. P4" value={form.id} onChange={e=>set('id',e.target.value)}/></Field><div className="field-grid"><Field label="Arrival time"><input type="number" min="0" step="1" required value={form.arrival} onChange={e=>set('arrival',e.target.value)}/></Field><Field label="CPU burst"><input type="number" min="1" step="1" required value={form.burst} onChange={e=>set('burst',e.target.value)}/></Field></div><Field label="Priority (lower number = higher priority)"><input type="number" min="0" step="1" required value={form.priority} onChange={e=>set('priority',e.target.value)}/></Field><button className="button button-primary button-full" type="submit"><span>+</span> Add job</button></form><div className="info-note"><CircleHelp size={15}/> The integrated C CLI is the authoritative way to run and verify operating-system modules.</div></section></div><section className="panel lifecycle-panel"><PanelTitle eyebrow="PROCESS LIFECYCLE" title="Supported transition model"/><div className="lifecycle"><div className="life-state"><span>01</span><strong>CREATED</strong><small>Job validated</small></div><ArrowRight/><div className="life-state"><span>02</span><strong>READY</strong><small>Waiting for CPU</small></div><ArrowRight/><div className="life-state"><span>03</span><strong>RUNNING</strong><small>Being scheduled</small></div><ArrowRight/><div className="life-state life-state--done"><span>04</span><strong>COMPLETED</strong><small>Execution finished</small></div></div></section></div>;
 }
 function SchedulingPage({jobs,policy,setPolicy,quantum,setQuantum,schedule,runSchedule}) {
-  return <div className="page-enter"><PageHeading eyebrow="CORE OS / FR2" title="CPU Scheduling" subtitle="Compare the three supported policies with the same job set."/><div className="stats-grid stats-grid--three"><StatCard icon={Cpu} label="Available policies" value="3" foot="FCFS · Round Robin · Priority" tone="indigo"/><StatCard icon={Layers3} label="Jobs in workspace" value={jobs.length} foot="Editable job records" tone="teal"/><StatCard icon={Clock3} label="Quantum" value={policy==='Round Robin'?quantum:'—'} foot="Used only for Round Robin" tone="purple"/></div><div className="content-grid"><section className="panel"><PanelTitle eyebrow="RUN CONFIGURATION" title="Scheduler controls" subtitle="Choose a policy and calculate using the jobs entered in this workspace."/><div className="form-stack"><Field label="Scheduling policy"><select value={policy} onChange={e=>setPolicy(e.target.value)}><option>FCFS</option><option>Round Robin</option><option>Priority</option></select></Field>{policy==='Round Robin'&&<Field label="Time quantum"><input type="number" min="1" step="1" value={quantum} onChange={e=>setQuantum(e.target.value)}/></Field>}<div className="policy-help"><Badge tone="info">{policy}</Badge><p>{policy==='FCFS'?'Jobs execute in arrival order.':policy==='Round Robin'?'Ready jobs receive a fixed time slice in queue order.':'The lowest numeric priority is selected first, without preemption.'}</p></div><button className="button button-primary button-full" onClick={runSchedule}><Play size={16}/> Run calculation</button></div></section><section className="panel"><PanelTitle eyebrow="INPUT JOB SET" title="Current jobs" subtitle="Edit these on Jobs & Processes."/><div className="table-scroll"><table><thead><tr><th>Job</th><th>Arrival</th><th>Burst</th><th>Priority</th></tr></thead><tbody>{jobs.map(j=><tr key={j.id}><td><span className="job-id">{j.id}</span></td><td>{j.arrival}</td><td>{j.burst}</td><td>{j.priority}</td></tr>)}</tbody></table></div><button className="button button-secondary button-full margin-top" onClick={()=>window.dispatchEvent(new CustomEvent('campuscompute-navigate',{detail:'jobs'}))}>Job set is editable on the Jobs screen <ArrowRight size={15}/></button></section></div>{schedule?<section className="panel result-panel"><PanelTitle eyebrow="SCHEDULING RESULT" title={schedule.policy+" result"} subtitle="Calculated from the current job records in this workspace." action={<Badge tone="info">Interactive calculation</Badge>}/><div className="mini-stats"><div><span>Average waiting</span><strong>{schedule.avgWaiting.toFixed(2)}</strong></div><div><span>Average turnaround</span><strong>{schedule.avgTurnaround.toFixed(2)}</strong></div><div><span>Makespan</span><strong>{Math.max(...schedule.rows.map(r=>r.completion))}</strong></div></div><div className="gantt"><div className="gantt-label">Execution timeline</div><div className="gantt-track">{schedule.timeline.map((t,i)=><div key={i} className={`gantt-piece gantt-piece--${i%5}`} style={{flexGrow:t.end-t.start,flexBasis:0}} title={`${t.id}: ${t.start}–${t.end}`}><strong>{t.id}</strong><small>{t.start}–{t.end}</small></div>)}</div></div><div className="table-scroll"><table><thead><tr><th>Job</th><th>Completion</th><th>Turnaround</th><th>Waiting</th></tr></thead><tbody>{schedule.rows.map(j=><tr key={j.id}><td><span className="job-id">{j.id}</span></td><td>{j.completion}</td><td>{j.turnaround}</td><td>{j.waiting}</td></tr>)}</tbody></table></div><p className="footnote">For verified results and assessment evidence, use the integrated CampusCompute C CLI.</p></section>:<section className="panel"><EmptyState icon={BarChart3} title="Ready for your first run" text="Add process records on Jobs & Processes, choose a scheduling policy and run the calculation."/></section>}</div>;
+  const descriptions = {
+    FCFS: 'First Come, First Served: jobs run in arrival order without preemption.',
+    'Round Robin': 'Each ready job receives the configured time quantum in FIFO order.',
+    Priority: 'Non-preemptive priority: lower numeric priority values run first.',
+    SJF: 'Shortest Job First: among arrived jobs, the shortest CPU burst runs to completion.',
+    SRTF: 'Shortest Remaining Time First: preemptively runs the arrived job with the least remaining CPU time.',
+    'Multilevel Queue': 'Fixed foreground, interactive and batch queues. Class 0 uses RR q=2, class 1 uses RR q=4, class 2+ uses FCFS; strict higher-queue priority applies.'
+  };
+  const isQueue = policy === 'Multilevel Queue';
+  return <div className="page-enter">
+    <PageHeading eyebrow="CORE OS / FR2" title="CPU Scheduling" subtitle="Run all six scheduling algorithms through the CampusCompute C engine and inspect their timelines and metrics."/>
+    <div className="stats-grid stats-grid--three">
+      <StatCard icon={Cpu} label="Available policies" value="6" foot="FCFS · RR · Priority · SJF · SRTF · MLQ" tone="indigo"/>
+      <StatCard icon={Layers3} label="Jobs in workspace" value={jobs.length} foot="Editable job records" tone="teal"/>
+      <StatCard icon={Clock3} label="Quantum" value={policy==='Round Robin'?quantum:'—'} foot="Used only for Round Robin" tone="purple"/>
+    </div>
+    <div className="content-grid">
+      <section className="panel">
+        <PanelTitle eyebrow="RUN CONFIGURATION" title="Scheduler controls" subtitle="Select any policy and calculate using the job set currently entered."/>
+        <div className="form-stack">
+          <Field label="Scheduling policy">
+            <select value={policy} onChange={e=>setPolicy(e.target.value)}>
+              <option>FCFS</option><option>Round Robin</option><option>Priority</option>
+              <option>SJF</option><option>SRTF</option><option>Multilevel Queue</option>
+            </select>
+          </Field>
+          {policy==='Round Robin'&&<Field label="Time quantum"><input type="number" min="1" max="100000" step="1" value={quantum} onChange={e=>setQuantum(e.target.value)}/></Field>}
+          <div className="policy-help"><Badge tone="info">{policy}</Badge><p>{descriptions[policy]}</p></div>
+          {isQueue&&<div className="policy-help"><strong>Multilevel Queue classes</strong><p>Priority 0 = foreground (Round Robin, q=2); Priority 1 = interactive (Round Robin, q=4); Priority 2 or greater = batch (FCFS). Negative priorities are also assigned to the foreground queue.</p></div>}
+          <button className="button button-primary button-full" onClick={runSchedule}><Play size={16}/> Run C engine calculation</button>
+        </div>
+      </section>
+      <section className="panel">
+        <PanelTitle eyebrow="INPUT JOB SET" title="Current jobs" subtitle={isQueue?"Use Priority as the Multilevel Queue class (0, 1, or 2+).":"Edit arrival, burst and priority on Jobs & Processes."}/>
+        <div className="table-scroll"><table><thead><tr><th>Job</th><th>Arrival</th><th>Burst</th><th>{isQueue?'Queue class':'Priority'}</th></tr></thead><tbody>{jobs.map(j=><tr key={j.id}><td><span className="job-id">{j.id}</span></td><td>{j.arrival}</td><td>{j.burst}</td><td>{j.priority}</td></tr>)}</tbody></table></div>
+        <button className="button button-secondary button-full margin-top" onClick={()=>window.dispatchEvent(new CustomEvent('campuscompute-navigate',{detail:'jobs'}))}>Edit job set <ArrowRight size={15}/></button>
+      </section>
+    </div>
+    {schedule?<section className="panel result-panel">
+      <PanelTitle eyebrow="C ENGINE SCHEDULING RESULT" title={schedule.policy+" result"} subtitle="Timeline and metrics returned by the C scheduler." action={<Badge tone="success">C engine</Badge>}/>
+      <div className="mini-stats"><div><span>Average waiting</span><strong>{Number(schedule.avgWaiting).toFixed(2)}</strong></div><div><span>Average turnaround</span><strong>{Number(schedule.avgTurnaround).toFixed(2)}</strong></div><div><span>Makespan</span><strong>{schedule.makespan ?? Math.max(...schedule.rows.map(r=>r.completion))}</strong></div></div>
+      <div className="gantt"><div className="gantt-label">Execution timeline</div><div className="gantt-track">{schedule.timeline.map((t,i)=><div key={i} className={\`gantt-piece gantt-piece--\${i%5}\`} style={{flexGrow:t.end-t.start,flexBasis:0}} title={\`\${t.id}: \${t.start}–\${t.end}\`}><strong>{t.id}</strong><small>{t.start}–{t.end}</small></div>)}</div></div>
+      <div className="table-scroll"><table><thead><tr><th>Job</th><th>Arrival</th><th>Burst</th><th>Completion</th><th>Turnaround</th><th>Waiting</th></tr></thead><tbody>{schedule.rows.map(j=><tr key={j.id}><td><span className="job-id">{j.id}</span></td><td>{j.arrival}</td><td>{j.burst}</td><td>{j.completion}</td><td>{j.turnaround}</td><td>{j.waiting}</td></tr>)}</tbody></table></div>
+      <p className="footnote">Source: CampusCompute C scheduler. SRTF timeline slices show preemption; Multilevel Queue displays the fixed queue policy described above.</p>
+    </section>:<section className="panel"><EmptyState icon={BarChart3} title="Ready for your first run" text="Add process records on Jobs & Processes, choose one of the six policies and run the C engine calculation."/></section>}
+  </div>;
 }
 function ResourceAllocationGraph({allocation,need}) {
   const processCount=allocation.length, resourceCount=allocation[0]?.length||0;
