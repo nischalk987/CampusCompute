@@ -12,6 +12,11 @@ import queue
 import pty
 import uuid
 import time
+import sqlite3
+import secrets
+import hashlib
+import hmac
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated
 
@@ -41,7 +46,7 @@ app.add_middleware(
     allow_origins=allowed_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "DELETE"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
@@ -768,3 +773,139 @@ The C engine uses POSIX/Linux features. Build and run it in Ubuntu/WSL.""", "std
         "exit_code": result.returncode,
         "cwd": payload.cwd,
     }
+
+
+# Student authentication (SQLite + PBKDF2 password hashing)
+AUTH_DB = Path(os.getenv("CAMPUSCOMPUTE_AUTH_DB", str(REPO_ROOT / "data" / "campuscompute.sqlite3")))
+
+def _auth_db() -> sqlite3.Connection:
+    AUTH_DB.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(AUTH_DB, timeout=10)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS students (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            full_name TEXT NOT NULL,
+            srn TEXT NOT NULL COLLATE NOCASE UNIQUE,
+            password_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS student_sessions (
+            token_hash TEXT PRIMARY KEY,
+            student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+            expires_at TEXT NOT NULL
+        )
+    """)
+    connection.commit()
+    return connection
+
+def _password_hash(password: str, salt: bytes | None = None) -> str:
+    salt = salt or secrets.token_bytes(16)
+    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 310000)
+    return salt.hex() + "$" + derived.hex()
+
+def _password_matches(password: str, stored: str) -> bool:
+    try:
+        salt_hex, expected = stored.split("$", 1)
+        actual = _password_hash(password, bytes.fromhex(salt_hex)).split("$", 1)[1]
+        return hmac.compare_digest(actual, expected)
+    except (ValueError, TypeError):
+        return False
+
+def _issue_session(connection: sqlite3.Connection, student_id: int) -> str:
+    token = secrets.token_urlsafe(36)
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    expires = (datetime.now(timezone.utc) + timedelta(hours=12)).isoformat()
+    connection.execute("INSERT INTO student_sessions(token_hash, student_id, expires_at) VALUES (?, ?, ?)",
+                       (token_hash, student_id, expires))
+    connection.commit()
+    return token
+
+def _student_from_request(request: Request) -> dict:
+    authorization = request.headers.get("Authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(401, "Please log in to continue.")
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    connection = _auth_db()
+    try:
+        row = connection.execute("""
+            SELECT students.id, students.full_name, students.srn, student_sessions.expires_at
+            FROM student_sessions JOIN students ON students.id = student_sessions.student_id
+            WHERE student_sessions.token_hash = ?
+        """, (token_hash,)).fetchone()
+        if not row:
+            raise HTTPException(401, "Session is invalid. Please log in again.")
+        if datetime.fromisoformat(row["expires_at"]) <= datetime.now(timezone.utc):
+            connection.execute("DELETE FROM student_sessions WHERE token_hash = ?", (token_hash,))
+            connection.commit()
+            raise HTTPException(401, "Session expired. Please log in again.")
+        return {"id": row["id"], "name": row["full_name"], "srn": row["srn"]}
+    finally:
+        connection.close()
+
+class RegisterRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    srn: str = Field(min_length=4, max_length=32, pattern=r"^[A-Za-z0-9-]+$")
+    password: str = Field(min_length=8, max_length=128)
+
+class LoginRequest(BaseModel):
+    srn: str = Field(min_length=4, max_length=32)
+    password: str = Field(min_length=8, max_length=128)
+
+@app.post("/api/auth/register")
+def register_student(payload: RegisterRequest) -> dict:
+    name = " ".join(payload.name.split())
+    srn = payload.srn.strip().upper()
+    if len(name) < 2:
+        raise HTTPException(422, "Enter your full name.")
+    connection = _auth_db()
+    try:
+        try:
+            cursor = connection.execute(
+                "INSERT INTO students(full_name, srn, password_hash, created_at) VALUES (?, ?, ?, ?)",
+                (name, srn, _password_hash(payload.password), datetime.now(timezone.utc).isoformat()),
+            )
+            token = _issue_session(connection, cursor.lastrowid)
+        except sqlite3.IntegrityError:
+            raise HTTPException(409, "An account with this SRN already exists. Please log in.")
+        return {"status": "success", "token": token,
+                "student": {"name": name, "srn": srn}}
+    finally:
+        connection.close()
+
+@app.post("/api/auth/login")
+def login_student(payload: LoginRequest) -> dict:
+    connection = _auth_db()
+    try:
+        row = connection.execute("SELECT id, full_name, srn, password_hash FROM students WHERE srn = ? COLLATE NOCASE",
+                                 (payload.srn.strip(),)).fetchone()
+        if not row or not _password_matches(payload.password, row["password_hash"]):
+            raise HTTPException(401, "Incorrect SRN or password.")
+        token = _issue_session(connection, row["id"])
+        return {"status": "success", "token": token,
+                "student": {"name": row["full_name"], "srn": row["srn"]}}
+    finally:
+        connection.close()
+
+@app.get("/api/auth/me")
+def current_student(request: Request) -> dict:
+    student = _student_from_request(request)
+    return {"student": {"name": student["name"], "srn": student["srn"]}}
+
+@app.post("/api/auth/logout")
+def logout_student(request: Request) -> dict:
+    authorization = request.headers.get("Authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() == "bearer" and token:
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        connection = _auth_db()
+        try:
+            connection.execute("DELETE FROM student_sessions WHERE token_hash = ?", (token_hash,))
+            connection.commit()
+        finally:
+            connection.close()
+    return {"status": "success"}
