@@ -27,7 +27,9 @@ def test_module_capabilities_are_explicit():
     assert modules["jobs"]["api"] is False
     assert modules["scheduling"]["api"] is False
     assert modules["banker"]["api"] is False
-    assert modules["ipc"]["status"] == "implemented"\n    assert modules["ipc"]["api"] is True\n    assert modules["ipc"]["operation"] == "POST /api/shared-memory"
+    assert modules["ipc"]["status"] == "implemented"
+    assert modules["ipc"]["api"] is True
+    assert modules["ipc"]["operation"] == "POST /api/shared-memory"
 
 
 def test_producer_rejects_count_out_of_range():
