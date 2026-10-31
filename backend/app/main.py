@@ -138,6 +138,81 @@ def modules() -> dict:
     }
 
 
+
+class ScheduleJobInput(BaseModel):
+    id: str = Field(min_length=1, max_length=31, pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,30}$")
+    arrival: int = Field(ge=0, le=2_000_000_000)
+    burst: int = Field(gt=0, le=2_000_000_000)
+    priority: int = Field(ge=-1_000_000, le=1_000_000)
+
+
+class ScheduleRequest(BaseModel):
+    policy: str = Field(pattern=r"^(FCFS|Round Robin|Priority|SJF|SRTF|Multilevel Queue)$")
+    quantum: int = Field(default=2, ge=1, le=100_000)
+    jobs: list[ScheduleJobInput] = Field(min_length=1, max_length=100)
+
+
+@app.post("/api/scheduling")
+def calculate_schedule(payload: ScheduleRequest) -> dict:
+    """Return scheduling output from the same C scheduler used by the CLI."""
+    executable = _executable(ENGINE_ROOT / "scheduler" / "cpu_scheduler")
+    # The CLI has a stable interactive contract. Send the selected policy and
+    # the validated job rows through stdin, then parse its labelled result.
+    policy_choices = {
+        "FCFS": "2", "Round Robin": "3", "Priority": "4",
+        "SJF": "5", "SRTF": "6", "Multilevel Queue": "7",
+    }
+    lines = [str(len(payload.jobs))]
+    for job in payload.jobs:
+        lines.extend([job.id, str(job.arrival), str(job.burst), str(job.priority)])
+    lines.append(policy_choices[payload.policy])
+    if payload.policy == "Round Robin":
+        lines.append(str(payload.quantum))
+    script = "\n".join(lines) + "\n"
+    try:
+        result = subprocess.run(
+            [str(executable)], input=script, capture_output=True, text=True,
+            cwd=REPO_ROOT, timeout=15, check=False,
+            env={**os.environ, "LC_ALL": "C"},
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, "CPU scheduler exceeded the execution time limit.")
+    if result.returncode != 0:
+        details = (result.stderr or result.stdout or "CPU scheduling failed")[-2000:]
+        raise HTTPException(422, details.strip())
+
+    output = result.stdout
+    # The interactive interface writes prompts and the selected schedule to
+    # stdout. Parse only the section starting at the selected policy heading.
+    heading = f"=== { {'FCFS':'FCFS','Round Robin':'Round Robin','Priority':'Non-preemptive Priority','SJF':'Shortest Job First (SJF)','SRTF':'Shortest Remaining Time First (SRTF)','Multilevel Queue':'Multilevel Queue'}[payload.policy] } Scheduling ==="
+    start = output.find(heading)
+    if start < 0:
+        raise HTTPException(502, "C scheduler did not return the expected result heading.")
+    section = output[start:]
+    import re
+    slices = []
+    rows = []
+    for match in re.finditer(r"\[(\d+)\s*-\s*(\d+)\]\s+([A-Za-z][A-Za-z0-9_-]{0,30})", section):
+        slices.append({"id": match.group(3), "start": int(match.group(1)), "end": int(match.group(2))})
+    for match in re.finditer(r"^([A-Za-z][A-Za-z0-9_-]{0,30})\s+(\d+)\s+(\d+)\s+(\d+)\s*$", section, re.MULTILINE):
+        jid, completion, turnaround, waiting = match.groups()
+        original = next(job for job in payload.jobs if job.id == jid)
+        rows.append({**original.model_dump(), "completion": int(completion),
+                     "turnaround": int(turnaround), "waiting": int(waiting)})
+    if len(rows) != len(payload.jobs) or not slices:
+        raise HTTPException(502, "Could not parse the complete C scheduler result.")
+    makespan_match = re.search(r"Makespan:\s+(\d+)", section)
+    if not makespan_match:
+        raise HTTPException(502, "C scheduler result is missing its makespan.")
+    rows.sort(key=lambda item: item["id"])
+    return {
+        "status": "success", "source": "CampusCompute C scheduler",
+        "policy": payload.policy, "rows": rows, "timeline": slices,
+        "avgWaiting": sum(row["waiting"] for row in rows) / len(rows),
+        "avgTurnaround": sum(row["turnaround"] for row in rows) / len(rows),
+        "makespan": int(makespan_match.group(1)),
+    }
+
 @app.post("/api/producer-consumer")
 def producer_consumer(event_count: Annotated[int, Query(ge=1, le=100_000)] = 12) -> dict:
     executable = _executable(ENGINE_ROOT / "producer_consumer" / "producer_consumer")
