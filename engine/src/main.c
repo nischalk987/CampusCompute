@@ -16,11 +16,14 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <unistd.h>\n#include <termios.h>
+#include <unistd.h>
+#include <termios.h>
 
 #define INPUT_SIZE 256
 
 static volatile sig_atomic_t interrupted = 0;
+
+static bool read_line(const char *prompt, char *buffer, size_t size);
 
 
 static bool authenticate_student(char *student_name, size_t name_size,
@@ -30,9 +33,9 @@ static bool authenticate_student(char *student_name, size_t name_size,
     char password[INPUT_SIZE];
     int password_pipe[2];
 
-    puts("\\n========== STUDENT LOGIN ==========");
+    puts("\n========== STUDENT LOGIN ==========");
     if (!read_line("Enter SRN      : ", srn, sizeof(srn))) return false;
-    if (srn[0] == '\\0' || strlen(srn) >= srn_size) {
+    if (srn[0] == '\0' || strlen(srn) >= srn_size) {
         puts("Invalid SRN.");
         return false;
     }
@@ -52,8 +55,8 @@ static bool authenticate_student(char *student_name, size_t name_size,
         puts("");
     }
     if (!read_ok) return false;
-    password[strcspn(password, "\\r\\n")] = '\\0';
-    if (password[0] == '\\0') {
+    password[strcspn(password, "\r\n")] = '\0';
+    if (password[0] == '\0') {
         puts("Password cannot be empty.");
         return false;
     }
@@ -80,7 +83,7 @@ static bool authenticate_student(char *student_name, size_t name_size,
     close(password_pipe[0]);
     size_t length = strlen(password);
     bool sent = write(password_pipe[1], password, length) == (ssize_t)length &&
-                write(password_pipe[1], "\\n", 1) == 1;
+                write(password_pipe[1], "\n", 1) == 1;
     close(password_pipe[1]);
     memset(password, 0, sizeof(password));
 
@@ -702,7 +705,7 @@ int main(void)
                              student_srn, sizeof(student_srn))) {
         return EXIT_FAILURE;
     }
-    printf("\\nAuthentication successful!\\nWelcome, %s (%s).\\n",
+    printf("\nAuthentication successful!\nWelcome, %s (%s).\n",
            student_name, student_srn);
 
     while (!interrupted) {
