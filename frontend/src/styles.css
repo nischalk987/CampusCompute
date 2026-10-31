@@ -82,3 +82,54 @@
 .connection-pill--connected{color:#16816f}
 .connection-pill--disconnected,.connection-pill--unavailable{color:#a66a1c}
 @media(max-width:760px){.student-profile-copy{display:none}.student-profile-trigger{padding:5px}.connection-pill{max-width:145px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+
+
+/* Banker's Algorithm workspace redesign */
+.banker-page{display:flex;flex-direction:column;gap:18px}
+.banker-intro{display:flex;align-items:center;gap:14px;padding:17px 19px;background:linear-gradient(110deg,#f3f2ff,#f8fbff);border:1px solid #e8e7fb;border-radius:13px}
+.banker-intro-icon{width:43px;height:43px;display:grid;place-items:center;border-radius:12px;background:#e7e5ff;color:#5146d8;flex-shrink:0}
+.banker-intro>div:nth-child(2){flex:1;min-width:0}
+.banker-intro strong{font-size:13px;color:#202a40}
+.banker-intro p{font-size:10px;line-height:1.6;color:#7c879b;margin:4px 0 0;max-width:760px}
+.banker-workspace{display:flex;flex-direction:column;gap:14px}
+.banker-input-panel,.banker-matrix-panel,.banker-result-panel{padding:22px}
+.banker-section-heading,.banker-result-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:17px}
+.banker-section-heading h2,.banker-result-heading h2{font:750 16px Manrope,sans-serif;color:#202a3c;margin:6px 0}
+.banker-section-heading p,.banker-result-heading p{font-size:10px;line-height:1.5;color:#8791a3;margin:0}
+.banker-step{width:32px;height:32px;display:grid;place-items:center;border-radius:9px;background:#f0efff;color:#5549d7;font:800 11px Manrope;flex-shrink:0}
+.banker-vector-label{display:block;font-size:10px;font-weight:750;color:#46536a;margin-bottom:7px}
+.banker-vector-input{width:100%;max-width:420px;padding:12px 14px;border:1px solid #dfe4ee;border-radius:9px;font:600 13px ui-monospace,SFMono-Regular,monospace;color:#26344a;outline:none}
+.banker-vector-input:focus,.banker-matrix-panel textarea:focus{border-color:#766cf0;box-shadow:0 0 0 3px rgba(100,88,230,.1)}
+.banker-hint{font-size:9px;line-height:1.6;color:#929bad;margin-top:8px}
+.banker-hint code{background:#f2f1ff;color:#5146d8;border-radius:4px;padding:2px 5px}
+.banker-matrix-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.banker-matrix-panel textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:156px;padding:13px 14px;border:1px solid #dfe4ee;border-radius:9px;background:#fbfcfe;color:#29364b;font:12px/1.9 ui-monospace,SFMono-Regular,monospace;outline:none}
+.banker-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:13px 16px;background:#fff;border:1px solid #e9edf3;border-radius:11px}
+.banker-input-summary{display:flex;gap:8px;flex-wrap:wrap}
+.banker-input-summary span{font-size:9px;font-weight:700;color:#68758a;background:#f4f6fa;padding:7px 9px;border-radius:7px}
+.banker-result-panel{display:flex;flex-direction:column;gap:16px}
+.banker-result-heading{align-items:center;margin-bottom:0}
+.banker-verdict{display:flex;align-items:center;gap:13px;padding:16px;border-radius:11px}
+.banker-verdict--safe{background:#effaf5;border:1px solid #d5f0e3;color:#13775d}
+.banker-verdict--unsafe{background:#fff4f3;border:1px solid #f5ddda;color:#b54747}
+.banker-verdict-mark{width:38px;height:38px;display:grid;place-items:center;border-radius:10px;background:rgba(255,255,255,.8);flex-shrink:0}
+.banker-verdict strong{font-size:13px}
+.banker-verdict p{font-size:10px;line-height:1.5;margin:4px 0 0;color:#718094}
+.banker-sequence-block h3,.banker-need-heading h3{font-size:12px;color:#354258;margin:0 0 10px}
+.banker-sequence{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.banker-sequence-item{display:flex;align-items:center;gap:8px}
+.banker-sequence-item>span{min-width:42px;text-align:center;padding:9px 12px;background:#e7f7ef;border:1px solid #d1eddf;border-radius:8px;color:#167a5e;font-size:11px;font-weight:800}
+.banker-sequence-item svg{color:#a2adba}
+.banker-need-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.banker-need-heading h3{margin:0 0 4px}
+.banker-need-heading p{font-size:9px;color:#8993a5;margin:0}
+.banker-need-heading>span{font-size:9px;color:#7e8799;background:#f5f6fa;border-radius:6px;padding:6px 8px}
+.banker-need-table{border:1px solid #edf0f4;border-radius:9px}
+.banker-need-table table{white-space:nowrap}
+.banker-source-note{font-size:9px;color:#8993a5;line-height:1.6;margin:0}
+.banker-source-note code{color:#5146d8;overflow-wrap:anywhere}
+.banker-empty{display:flex;align-items:center;gap:13px;padding:19px}
+.banker-empty-icon{width:40px;height:40px;display:grid;place-items:center;background:#f1f0ff;border-radius:11px;color:#5b50dc}
+.banker-empty strong{font-size:11px;color:#344158}
+.banker-empty p{font-size:10px;color:#8993a5;margin:4px 0 0}
+@media(max-width:760px){.banker-matrix-grid{grid-template-columns:1fr}.banker-intro{align-items:flex-start;flex-wrap:wrap}.banker-intro>div:nth-child(2){min-width:calc(100% - 65px)}.banker-actions{align-items:stretch}.banker-actions .form-actions{justify-content:flex-start}.banker-input-panel,.banker-matrix-panel,.banker-result-panel{padding:16px}}
