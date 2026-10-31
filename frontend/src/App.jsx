@@ -4,7 +4,7 @@ import {
   BadgeCheck, BarChart3, Bell, Blocks, Check, ChevronDown, CircleHelp,
   Clock3, Cpu, Database, FileText, Gauge, HardDrive, Home, Layers3,
   ListTodo, LockKeyhole, Menu, Play, RefreshCw, Search, Settings2,
-  ShieldCheck, Terminal, Users, X, Zap
+  ShieldCheck, Terminal, Users, X, Zap, Maximize2, Minimize2
 } from 'lucide-react';
 
 const implemented = {
@@ -410,6 +410,7 @@ function ProducerPage({count,setCount,notify,apiBase,setApiBase,apiStatus,events
 }
 function TerminalPage({notify}) {
   const [input, setInput] = useState('');
+  const [terminalExpanded, setTerminalExpanded] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [lines, setLines] = useState([
@@ -587,8 +588,8 @@ function TerminalPage({notify}) {
         <p>Interactive execution is limited to executable files inside the CampusCompute repository. Use 0 in the scheduler menu to exit normally.</p>
       </div>
     </div>
-    <section className="terminal-window" aria-label="Interactive Ubuntu terminal">
-      <div className="terminal-titlebar"><div className="terminal-lights"><span/><span/><span/></div><div className="terminal-title"><Terminal size={14}/> campuscompute — interactive terminal</div>{sessionId&&<button className="terminal-clear" onClick={stopInteractive} title="Stop interactive program">Stop program</button>}<button className="terminal-clear" onClick={()=>setLines([])} title="Clear terminal">Clear</button></div>
+    <section className={terminalExpanded ? "terminal-window terminal-window--expanded" : "terminal-window"} aria-label="Interactive Ubuntu terminal">
+      <div className="terminal-titlebar"><div className="terminal-lights"><span/><span/><span/></div><div className="terminal-title"><Terminal size={14}/> campuscompute — interactive terminal</div><button type="button" className="terminal-clear terminal-expand" onClick={()=>setTerminalExpanded(value=>!value)} title={terminalExpanded ? "Restore terminal size" : "Enlarge terminal"} aria-label={terminalExpanded ? "Restore terminal size" : "Enlarge terminal"}>{terminalExpanded?<Minimize2 size={13}/>:<Maximize2 size={13}/>}<span>{terminalExpanded ? "Restore" : "Enlarge"}</span></button>{sessionId&&<button className="terminal-clear" onClick={stopInteractive} title="Stop interactive program">Stop program</button>}<button className="terminal-clear" onClick={()=>setLines([])} title="Clear terminal">Clear</button></div>
       <div className="terminal-screen" onClick={()=>document.getElementById('terminal-command')?.focus()}>
         {lines.map((line,index)=><pre className={'terminal-line terminal-line--' + line.type} key={index}>{line.text}</pre>)}
         <form className="terminal-input-row" onSubmit={event=>{event.preventDefault();runCommand(input);}}>
