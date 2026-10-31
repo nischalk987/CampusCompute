@@ -178,45 +178,64 @@ static bool run_round_robin_subset(const JobManager *manager, ScheduleResult *re
     size_t n = manager->count;
     size_t *order = malloc(n * sizeof(*order));
     size_t *queue = malloc(n * sizeof(*queue));
-    if (!order || !queue) { free(order); free(queue); set_error(error,size,"Unable to allocate ready queue."); return false; }
+    bool *enqueued_flag = calloc(n, sizeof(*enqueued_flag));
+    if (!order || !queue || !enqueued_flag) {
+        free(order); free(queue); free(enqueued_flag);
+        set_error(error, size, "Unable to allocate ready queue.");
+        return false;
+    }
     sort_indices_by_arrival(manager, order);
-    size_t head=0, tail=0, count=0, enqueued=0;
-    while (1) {
+    size_t head=0, tail=0, count=0, enqueued=0, completed=0, total=0;
+    for (size_t i=0;i<n;i++) {
+        bool selected = queue_level==0 ? manager->jobs[i].priority<=0 :
+                        queue_level==1 ? manager->jobs[i].priority==1 :
+                        manager->jobs[i].priority>=2;
+        if (selected) total++;
+    }
+    while (completed < total) {
         while (enqueued<n && manager->jobs[order[enqueued]].arrival_time<=*clock) {
             size_t i=order[enqueued++];
-            bool selected = queue_level == 0 ? manager->jobs[i].priority <= 0 :
-                            queue_level == 1 ? manager->jobs[i].priority == 1 :
-                            manager->jobs[i].priority >= 2;
-            if (selected && !done[i]) { queue[tail]=i; tail=(tail+1)%n; count++; }
+            bool selected = queue_level==0 ? manager->jobs[i].priority<=0 :
+                            queue_level==1 ? manager->jobs[i].priority==1 :
+                            manager->jobs[i].priority>=2;
+            if (selected && !done[i] && !enqueued_flag[i]) {
+                queue[tail]=i; tail=(tail+1)%n; count++; enqueued_flag[i]=true;
+            }
         }
         if (!count) {
-            if (enqueued<n) { *clock=manager->jobs[order[enqueued]].arrival_time; continue; }
-            bool any=false;
-            for (size_t i=0;i<n;i++) if (!done[i] &&
-                (queue_level==0?manager->jobs[i].priority<=0:queue_level==1?manager->jobs[i].priority==1:manager->jobs[i].priority>=2)) any=true;
-            if (!any) break;
             unsigned int next=UINT32_MAX;
-            for(size_t i=0;i<n;i++) if(!done[i] && manager->jobs[i].arrival_time>*clock &&
-                (queue_level==0?manager->jobs[i].priority<=0:queue_level==1?manager->jobs[i].priority==1:manager->jobs[i].priority>=2) &&
-                manager->jobs[i].arrival_time<next) next=manager->jobs[i].arrival_time;
-            if(next==UINT32_MAX) break; *clock=next; continue;
+            for(size_t i=0;i<n;i++) {
+                bool selected=queue_level==0?manager->jobs[i].priority<=0:
+                              queue_level==1?manager->jobs[i].priority==1:
+                              manager->jobs[i].priority>=2;
+                if(selected&&!done[i]&&!enqueued_flag[i]&&manager->jobs[i].arrival_time<next)
+                    next=manager->jobs[i].arrival_time;
+            }
+            if(next==UINT32_MAX) break;
+            *clock=next;
+            continue;
         }
         size_t i=queue[head]; head=(head+1)%n; count--;
         unsigned int run=remaining[i]<quantum?remaining[i]:quantum;
         unsigned int start=*clock; *clock+=run; remaining[i]-=run;
-        if(!append_slice(result,manager->jobs[i].id,start,*clock,error,size)){free(order);free(queue);return false;}
+        if(!append_slice(result,manager->jobs[i].id,start,*clock,error,size)) {
+            free(order);free(queue);free(enqueued_flag);return false;
+        }
         while(enqueued<n && manager->jobs[order[enqueued]].arrival_time<=*clock) {
             size_t j=order[enqueued++];
-            bool selected = queue_level == 0 ? manager->jobs[j].priority <= 0 :
-                            queue_level == 1 ? manager->jobs[j].priority == 1 : manager->jobs[j].priority >= 2;
-            if(selected && !done[j]){queue[tail]=j;tail=(tail+1)%n;count++;}
+            bool selected=queue_level==0?manager->jobs[j].priority<=0:
+                          queue_level==1?manager->jobs[j].priority==1:
+                          manager->jobs[j].priority>=2;
+            if(selected&&!done[j]&&!enqueued_flag[j]) {
+                queue[tail]=j;tail=(tail+1)%n;count++;enqueued_flag[j]=true;
+            }
         }
-        if(remaining[i]){queue[tail]=i;tail=(tail+1)%n;count++;}
-        else {done[i]=true;result->completion_times[i]=*clock;}
+        if(remaining[i]) { queue[tail]=i;tail=(tail+1)%n;count++; }
+        else { done[i]=true;result->completion_times[i]=*clock;completed++; }
     }
-    free(order);free(queue);return true;
+    free(order);free(queue);free(enqueued_flag);
+    return completed==total;
 }
-
 static bool run_srtf(const JobManager *manager, ScheduleResult *result, unsigned int *remaining,
                      char *error, size_t size) {
     size_t completed=0; unsigned int clock=0;
