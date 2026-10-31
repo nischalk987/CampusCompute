@@ -7,3 +7,7 @@ engine/src/shared_memory/shared_memory
 
 # Runtime logs
 logs/*.log
+
+# Local student authentication database (never commit student data)
+data/*.sqlite3
+data/*.db

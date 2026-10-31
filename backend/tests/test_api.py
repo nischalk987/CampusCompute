@@ -107,3 +107,29 @@ def test_shared_memory_executes_real_writer_reader_exchange():
     assert body["acknowledged"] is True
     assert "[writer] published" in body["writer_output"]
     assert "[reader] received" in body["reader_output"]
+
+
+def test_student_registration_login_and_logout_use_sqlite(tmp_path):
+    database = tmp_path / "students.sqlite3"
+    with patch.object(main, "AUTH_DB", database):
+        registered = client.post("/api/auth/register", json={
+            "name": "Campus Student", "srn": "PES1UG26CS001", "password": "strong-pass-123"
+        })
+        assert registered.status_code == 200, registered.text
+        payload = registered.json()
+        assert payload["student"] == {"name": "Campus Student", "srn": "PES1UG26CS001"}
+        token = payload["token"]
+        assert client.get("/api/auth/me", headers={"Authorization": "Bearer " + token}).json()["student"]["srn"] == "PES1UG26CS001"
+        assert client.post("/api/auth/register", json={
+            "name": "Duplicate Student", "srn": "PES1UG26CS001", "password": "strong-pass-123"
+        }).status_code == 409
+        assert client.post("/api/auth/login", json={
+            "srn": "PES1UG26CS001", "password": "wrong-pass-123"
+        }).status_code == 401
+        logged_in = client.post("/api/auth/login", json={
+            "srn": "PES1UG26CS001", "password": "strong-pass-123"
+        })
+        assert logged_in.status_code == 200
+        login_token = logged_in.json()["token"]
+        assert client.post("/api/auth/logout", headers={"Authorization": "Bearer " + login_token}).status_code == 200
+        assert client.get("/api/auth/me", headers={"Authorization": "Bearer " + login_token}).status_code == 401
