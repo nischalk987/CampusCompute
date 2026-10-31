@@ -154,19 +154,14 @@ class ScheduleRequest(BaseModel):
 
 @app.post("/api/scheduling")
 def calculate_schedule(payload: ScheduleRequest) -> dict:
-    """Run a selected algorithm through the real C scheduler library."""
+    """Run the selected policy using the scheduler shared library built by Make."""
     import ctypes
 
     class CJob(ctypes.Structure):
-        _fields_ = [
-            ("id", ctypes.c_char * 32),
-            ("arrival_time", ctypes.c_uint),
-            ("burst_time", ctypes.c_uint),
-            ("remaining_time", ctypes.c_uint),
-            ("completion_time", ctypes.c_uint),
-            ("priority", ctypes.c_int),
-            ("status", ctypes.c_int),
-        ]
+        _fields_ = [("id", ctypes.c_char * 32),
+                    ("arrival_time", ctypes.c_uint), ("burst_time", ctypes.c_uint),
+                    ("remaining_time", ctypes.c_uint), ("completion_time", ctypes.c_uint),
+                    ("priority", ctypes.c_int), ("status", ctypes.c_int)]
 
     class CJobManager(ctypes.Structure):
         _fields_ = [("jobs", ctypes.POINTER(CJob)), ("count", ctypes.c_size_t),
@@ -177,61 +172,34 @@ def calculate_schedule(payload: ScheduleRequest) -> dict:
                     ("start_time", ctypes.c_uint), ("end_time", ctypes.c_uint)]
 
     class CScheduleResult(ctypes.Structure):
-        _fields_ = [
-            ("slices", ctypes.POINTER(CScheduleSlice)), ("slice_count", ctypes.c_size_t),
-            ("completion_times", ctypes.POINTER(ctypes.c_uint)),
-            ("turnaround_times", ctypes.POINTER(ctypes.c_uint)),
-            ("waiting_times", ctypes.POINTER(ctypes.c_uint)),
-            ("job_count", ctypes.c_size_t), ("average_turnaround", ctypes.c_double),
-            ("average_waiting", ctypes.c_double), ("total_time", ctypes.c_uint),
-        ]
+        _fields_ = [("slices", ctypes.POINTER(CScheduleSlice)), ("slice_count", ctypes.c_size_t),
+                    ("completion_times", ctypes.POINTER(ctypes.c_uint)),
+                    ("turnaround_times", ctypes.POINTER(ctypes.c_uint)),
+                    ("waiting_times", ctypes.POINTER(ctypes.c_uint)),
+                    ("job_count", ctypes.c_size_t), ("average_turnaround", ctypes.c_double),
+                    ("average_waiting", ctypes.c_double), ("total_time", ctypes.c_uint)]
 
-    source = ENGINE_ROOT / "scheduler"
-    job_source = ENGINE_ROOT / "job_manager"
-    build_dir = REPO_ROOT / "engine" / "build"
-    build_dir.mkdir(parents=True, exist_ok=True)
-    library = build_dir / "libcampuscompute_scheduler.so"
-    compiler = shutil.which("gcc")
-    if not compiler:
-        raise HTTPException(503, "GCC is required to build the CPU scheduling library.")
-    try:
-        built = subprocess.run(
-            [compiler, "-std=c11", "-Wall", "-Wextra", "-Wpedantic", "-Werror",
-             "-O2", "-fPIC", "-shared",
-             "-I" + str(source / "include"), "-I" + str(job_source / "include"),
-             str(source / "src" / "scheduler.c"),
-             str(job_source / "src" / "job_manager.c"), "-lm", "-o", str(library)],
-            cwd=REPO_ROOT, capture_output=True, text=True, timeout=45, check=False,
-            env={**os.environ, "LC_ALL": "C"},
-        )
-    except subprocess.TimeoutExpired:
-        raise HTTPException(504, "Building the scheduling library timed out.")
-    if built.returncode != 0:
-        raise HTTPException(503, "Unable to build CPU scheduler library: " +
-                            (built.stderr or built.stdout)[-2000:])
-
+    executable = _executable(ENGINE_ROOT / "scheduler" / "cpu_scheduler")
+    library = executable.parent / "libcampuscompute_scheduler.so"
+    if not library.is_file():
+        raise HTTPException(503, "Scheduler library was not built. Run: make -C engine/src/scheduler all")
     try:
         lib = ctypes.CDLL(str(library))
-        lib.scheduler_run.argtypes = [ctypes.POINTER(CJobManager), ctypes.c_int,
-                                      ctypes.c_uint, ctypes.POINTER(CScheduleResult),
-                                      ctypes.c_char_p, ctypes.c_size_t]
+        lib.scheduler_run.argtypes = [ctypes.POINTER(CJobManager), ctypes.c_int, ctypes.c_uint,
+                                      ctypes.POINTER(CScheduleResult), ctypes.c_char_p, ctypes.c_size_t]
         lib.scheduler_run.restype = ctypes.c_bool
         lib.schedule_result_destroy.argtypes = [ctypes.POINTER(CScheduleResult)]
-        lib.scheduling_policy_name.argtypes = [ctypes.c_int]
-        lib.scheduling_policy_name.restype = ctypes.c_char_p
-
         job_array = (CJob * len(payload.jobs))()
-        for i, item in enumerate(payload.jobs):
-            job_array[i].id = item.id.encode("utf-8")
-            job_array[i].arrival_time = item.arrival
-            job_array[i].burst_time = item.burst
-            job_array[i].remaining_time = item.burst
-            job_array[i].priority = item.priority
-            job_array[i].status = 0
+        for index, job in enumerate(payload.jobs):
+            job_array[index].id = job.id.encode()
+            job_array[index].arrival_time = job.arrival
+            job_array[index].burst_time = job.burst
+            job_array[index].remaining_time = job.burst
+            job_array[index].priority = job.priority
+            job_array[index].status = 0
         manager = CJobManager(job_array, len(payload.jobs), len(payload.jobs))
-        policy_ids = {"FCFS": 0, "Round Robin": 1, "Priority": 2,
-                      "SJF": 3, "SRTF": 4, "Multilevel Queue": 5}
-        policy_id = policy_ids[payload.policy]
+        policy_id = {"FCFS": 0, "Round Robin": 1, "Priority": 2,
+                     "SJF": 3, "SRTF": 4, "Multilevel Queue": 5}[payload.policy]
         result = CScheduleResult()
         error = ctypes.create_string_buffer(256)
         ok = lib.scheduler_run(ctypes.byref(manager), policy_id, payload.quantum,
@@ -239,24 +207,20 @@ def calculate_schedule(payload: ScheduleRequest) -> dict:
         if not ok:
             raise HTTPException(422, error.value.decode("utf-8", errors="replace") or "Scheduling failed.")
         try:
-            timeline = []
-            for i in range(result.slice_count):
-                item = result.slices[i]
-                timeline.append({"id": item.job_id.decode("utf-8"),
-                                 "start": int(item.start_time), "end": int(item.end_time)})
-            rows = []
-            for i, item in enumerate(payload.jobs):
-                rows.append({**item.model_dump(),
-                             "completion": int(result.completion_times[i]),
-                             "turnaround": int(result.turnaround_times[i]),
-                             "waiting": int(result.waiting_times[i])})
-            return {
-                "status": "success", "source": "CampusCompute C scheduler library",
-                "policy": payload.policy, "rows": rows, "timeline": timeline,
-                "avgWaiting": float(result.average_waiting),
-                "avgTurnaround": float(result.average_turnaround),
-                "makespan": int(result.total_time),
-            }
+            timeline = [{"id": result.slices[i].job_id.decode(),
+                         "start": int(result.slices[i].start_time),
+                         "end": int(result.slices[i].end_time)}
+                        for i in range(result.slice_count)]
+            rows = [{**job.model_dump(),
+                     "completion": int(result.completion_times[i]),
+                     "turnaround": int(result.turnaround_times[i]),
+                     "waiting": int(result.waiting_times[i])}
+                    for i, job in enumerate(payload.jobs)]
+            return {"status": "success", "source": "CampusCompute C scheduler",
+                    "policy": payload.policy, "rows": rows, "timeline": timeline,
+                    "avgWaiting": float(result.average_waiting),
+                    "avgTurnaround": float(result.average_turnaround),
+                    "makespan": int(result.total_time)}
         finally:
             lib.schedule_result_destroy(ctypes.byref(result))
     except HTTPException:
