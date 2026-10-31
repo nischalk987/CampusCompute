@@ -30,4 +30,5 @@ bool banker_check_safety(const BankerState *state, BankerResult *result,
                          char *error, size_t error_size);
 void banker_print_state(const BankerState *state);
 void banker_print_result(const BankerState *state, const BankerResult *result);
+void banker_print_resource_graph(const BankerState *state);
 #endif
