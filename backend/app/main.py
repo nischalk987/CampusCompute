@@ -101,7 +101,7 @@ def health() -> dict:
             "scheduling": "interactive-cli-only",
             "producer_consumer": "argv-enabled",
             "banker": "interactive-cli-only",
-            "shared_memory": "implemented-cli-only",
+            "shared_memory": "api-enabled",
             "worker_failure": "implemented-cli-only",
             "resource_limits": "implemented-cli-only",
             "integrated_cli": "implemented",
