@@ -15,7 +15,7 @@ def test_health_does_not_claim_unimplemented_modules_are_ready():
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert body["engine_modules"]["shared_memory"] == "implemented-cli-only"
+    assert body["engine_modules"]["shared_memory"] == "api-enabled"
     assert body["engine_modules"]["integrated_cli"] == "implemented"
 
 
@@ -27,7 +27,9 @@ def test_module_capabilities_are_explicit():
     assert modules["jobs"]["api"] is False
     assert modules["scheduling"]["api"] is False
     assert modules["banker"]["api"] is False
-    assert modules["ipc"]["status"] == "implemented-cli-only"
+    assert modules["ipc"]["status"] == "implemented"
+    assert modules["ipc"]["api"] is True
+    assert modules["ipc"]["operation"] == "POST /api/shared-memory"
 
 
 def test_producer_rejects_count_out_of_range():
@@ -85,3 +87,23 @@ def test_malformed_engine_log_is_not_returned_as_success():
         tempdir.return_value.__exit__.return_value = False
         response = client.post("/api/producer-consumer?event_count=1")
     assert response.status_code == 502
+
+
+
+def test_shared_memory_rejects_empty_and_oversized_messages():
+    assert client.post("/api/shared-memory", json={"message": ""}).status_code == 422
+    assert client.post("/api/shared-memory", json={"message": "   "}).status_code == 422
+    assert client.post("/api/shared-memory", json={"message": "x" * 256}).status_code == 422
+
+
+def test_shared_memory_executes_real_writer_reader_exchange():
+    response = client.post("/api/shared-memory", json={"message": "Hello from the CampusCompute dashboard"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["source"].startswith("C engine")
+    assert body["sequence"] == 1
+    assert body["message_sent"] == "Hello from the CampusCompute dashboard"
+    assert body["message_received"] == body["message_sent"]
+    assert body["acknowledged"] is True
+    assert "[writer] published" in body["writer_output"]
+    assert "[reader] received" in body["reader_output"]

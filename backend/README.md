@@ -33,6 +33,7 @@ Keep the server bound to `127.0.0.1`. Do not expose this development adapter to 
 | `GET /health` | Service health and engine capability metadata |
 | `GET /api/modules` | Module/API capability inventory |
 | `POST /api/producer-consumer?event_count=N` | Run the real FR3 C executable and return parsed log events |
+| `POST /api/shared-memory` | Run the real FR4 POSIX shared-memory writer and reader C processes and return their output and acknowledgement |
 | `POST /api/terminal/session/start` | Start an allowlisted repository executable in a local PTY session |
 | `POST /api/terminal/session/input` | Send input to an existing local PTY session |
 | `GET /api/terminal/session/{session_id}` | Poll output and process state |
@@ -54,7 +55,7 @@ The response contains `status`, `source`, `event_count_requested`, `events_produ
 - FR1 job manager: implemented in C; no structured HTTP CRUD/list API.
 - FR2 scheduler: implemented in C; no structured scheduling API.
 - FR3 producer–consumer: implemented in C and exposed through the structured endpoint above.
-- FR4 shared-memory IPC: implemented in C and integrated CLI; no structured HTTP endpoint.
+- FR4 shared-memory IPC: implemented in C and exposed through `POST /api/shared-memory`; the dashboard displays real writer/reader output and acknowledgement.
 - FR5 Banker's Algorithm: implemented in C; no structured HTTP endpoint.
 - FR6 process manager: implemented in C and integrated CLI; no structured HTTP endpoint.
 - FR7 resource limits: implemented in C and integrated CLI; no structured HTTP endpoint.
@@ -96,7 +97,7 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL printed in the terminal. The dashboard and backend are separate processes; keep both running while testing API-connected views.
+Open the Vite URL printed in the terminal. The dashboard and backend are separate processes; keep both running while testing API-connected views. The dashboard defaults to `http://127.0.0.1:8000`, matching the backend command above. FR4 automatically builds its C executable on the first API request if it is missing and GNU Make/GCC are installed.
 
 ## Tests
 

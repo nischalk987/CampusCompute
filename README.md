@@ -19,7 +19,7 @@ CampusCompute is a Linux/Ubuntu C project demonstrating operating-system concept
 | FastAPI adapter | Partial | Real structured endpoint for FR3; restricted local terminal routes |
 | React dashboard | Available | Some views are previews; not all FR modules have API operations |
 
-Do not interpret a dashboard preview as authoritative engine output. FR1, FR2, FR4, FR5, FR6 and FR7 are available through the C CLI but do not all have structured HTTP operations.
+Do not interpret a dashboard preview as authoritative engine output. FR1, FR2, FR5, FR6 and FR7 remain CLI-first; FR3 and FR4 have structured HTTP operations that execute the real C modules.
 
 ## Quick start — Ubuntu / WSL Ubuntu
 
@@ -141,7 +141,7 @@ npm run dev
 
 The API health check is http://127.0.0.1:8000/health and interactive API documentation is http://127.0.0.1:8000/docs.
 
-The FR3 endpoint `POST /api/producer-consumer?event_count=N` runs the real C producer–consumer executable and returns validated log records. Other OS modules remain accessible through the integrated C CLI unless and until structured API operations are implemented. The local terminal routes are restricted to local development; keep the API bound to `127.0.0.1` and do not expose it to the public internet.
+The FR3 endpoint `POST /api/producer-consumer?event_count=N` runs the real C producer–consumer executable and returns validated log records. The FR4 endpoint `POST /api/shared-memory` runs the real POSIX shared-memory writer and reader processes and returns their output and acknowledgement to the dashboard. Other OS modules remain accessible through the integrated C CLI unless and until structured API operations are implemented. The local terminal routes are restricted to local development; keep the API bound to `127.0.0.1` and do not expose it to the public internet.
 
 ## Technical concepts demonstrated
 

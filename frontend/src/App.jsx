@@ -11,7 +11,7 @@ const implemented = {
   jobs: { label: 'Jobs & Processes', group: 'Core OS', icon: Layers3, status: 'Implemented', description: 'Create validated jobs and track their lifecycle.' },
   scheduling: { label: 'CPU Scheduling', group: 'Core OS', icon: Cpu, status: 'Implemented', description: 'Compare FCFS, Round Robin and non-preemptive Priority.' },
   producer: { label: 'Producer–Consumer', group: 'Concurrency', icon: Activity, status: 'Implemented', description: 'Run the POSIX thread queue and inspect event logs.' },
-  ipc: { label: 'Shared Memory IPC', group: 'Concurrency', icon: Database, status: 'Not implemented', description: 'POSIX shared-memory exchange and synchronization.' },
+  ipc: { label: 'Shared Memory IPC', group: 'Concurrency', icon: Database, status: 'Implemented', description: 'Exchange messages through POSIX shared memory and semaphore synchronization.' },
   banker: { label: "Banker's Algorithm", group: 'Resource Management', icon: ShieldCheck, status: 'Implemented', description: 'Evaluate resource allocation safety and safe sequences.' },
   worker: { label: 'Worker Failure', group: 'Resource Management', icon: Users, status: 'Not implemented', description: 'Observe child-process completion and controlled failure.' },
   limits: { label: 'Resource Limits', group: 'Resource Management', icon: Gauge, status: 'Not implemented', description: 'Demonstrate supported OS resource limits and cleanup.' },
@@ -101,11 +101,14 @@ export default function App() {
   const [max, setMax] = useState('7 5 3; 3 2 2; 9 0 2; 2 2 2; 4 3 3');
   const [search, setSearch] = useState('');
   const [commandCopied, setCommandCopied] = useState(false);
-  const [apiBase, setApiBase] = useState('http://127.0.0.1:8001');
+  const [apiBase, setApiBase] = useState('http://127.0.0.1:8000');
   const [apiStatus, setApiStatus] = useState('checking');
   const [apiEvents, setApiEvents] = useState([]);
   const [apiSummary, setApiSummary] = useState('');
   const [apiBusy, setApiBusy] = useState(false);
+  const [ipcMessage, setIpcMessage] = useState('Hello from CampusCompute');
+  const [ipcResult, setIpcResult] = useState(null);
+  const [ipcBusy, setIpcBusy] = useState(false);
 
   useEffect(() => {
     const handler = (event) => { if (event.detail) setActive(event.detail); };
@@ -199,7 +202,7 @@ export default function App() {
 
   const activeItem = active === 'overview' ? { label: 'Overview', description: 'A clear view of the operating-systems lab and its modules.' } : implemented[active];
   const currentStatus = active === 'overview' ? 'Workspace snapshot' : activeItem?.status;
-  const supported = ['jobs','scheduling','producer','banker'].includes(active);
+  const supported = ['jobs','scheduling','producer','ipc','banker'].includes(active);
 
   return <div className="app-shell">
     {mobileOpen && <button className="mobile-scrim" aria-label="Close navigation" onClick={()=>setMobileOpen(false)} />}
@@ -220,6 +223,16 @@ export default function App() {
           active==='jobs' ? <JobsPage jobs={jobs} setPage={setPage} form={jobForm} setForm={setJobForm} addJob={addJob} /> :
           active==='scheduling' ? <SchedulingPage jobs={jobs} policy={policy} setPolicy={setPolicy} quantum={quantum} setQuantum={setQuantum} schedule={schedule} runSchedule={runSchedule} /> :
           active==='banker' ? <BankerPage available={available} setAvailable={setAvailable} alloc={alloc} setAlloc={setAlloc} max={max} setMax={setMax} result={bankerResult} run={runBanker}/> :
+          active==='ipc' ? <SharedMemoryPage message={ipcMessage} setMessage={setIpcMessage} result={ipcResult} busy={ipcBusy} apiStatus={apiStatus} runApi={async () => {
+            setIpcBusy(true); setIpcResult(null);
+            try {
+              const response = await fetch(apiBase.replace(/\/$/, '') + '/api/shared-memory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: ipcMessage }) });
+              const data = await response.json();
+              if (!response.ok) throw new Error(data.detail || 'Shared-memory exchange failed');
+              setIpcResult(data); notify('Shared-memory exchange completed and reader acknowledgement received.');
+            } catch (error) { notify('Shared-memory API failed: ' + error.message); }
+            finally { setIpcBusy(false); }
+          }}/> :
           active==='producer' ? <ProducerPage count={pcCount} setCount={setPcCount} notify={notify} apiBase={apiBase} setApiBase={setApiBase} apiStatus={apiStatus} events={apiEvents} summary={apiSummary} busy={apiBusy} runApi={async () => {
             setApiBusy(true); setApiEvents([]); setApiSummary('');
             try {
@@ -271,9 +284,31 @@ function SchedulingPage({jobs,policy,setPolicy,quantum,setQuantum,schedule,runSc
 function BankerPage({available,setAvailable,alloc,setAlloc,max,setMax,result,run}) {
   return <div className="page-enter"><PageHeading eyebrow="RESOURCE MANAGEMENT / FR5" title="Banker's Algorithm" subtitle="Enter resource matrices and inspect Need, safety status and a candidate safe sequence."/><div className="status-banner status-banner--teal"><div className="status-banner-icon"><ShieldCheck size={19}/></div><div className="status-banner-copy"><strong>FR5 C module is implemented</strong><span>The screen includes a browser-side calculation for exploration. Validate the output with the compiled C module before using it as evidence.</span></div><Badge tone="success">C module ready</Badge></div><section className="panel banker-form"><PanelTitle eyebrow="RESOURCE STATE" title="Allocation inputs" subtitle="Use spaces between values and semicolons between process rows."/><form onSubmit={run}><Field label="Available vector"><input value={available} onChange={e=>setAvailable(e.target.value)} aria-label="Available vector" required/></Field><div className="field-grid"><Field label="Allocation matrix"><textarea rows="6" value={alloc} onChange={e=>setAlloc(e.target.value)} required/></Field><Field label="Maximum matrix"><textarea rows="6" value={max} onChange={e=>setMax(e.target.value)} required/></Field></div><div className="form-actions"><button type="button" className="button button-secondary" onClick={()=>{setAvailable('3 3 2');setAlloc('0 1 0; 2 0 0; 3 0 2; 2 1 1; 0 0 2');setMax('7 5 3; 3 2 2; 9 0 2; 2 2 2; 4 3 3');}}>Restore sample</button><button className="button button-primary" type="submit"><ShieldCheck size={16}/> Check safety preview</button></div></form></section>{result?<section className="panel result-panel"><PanelTitle eyebrow="SAFETY CHECK" title={result.safe?'System is in a SAFE state':'System is in an UNSAFE state'} action={<Badge tone={result.safe?'success':'danger'}>{result.safe?'Safe':'Unsafe'}</Badge>}/>{result.safe?<div className="safe-sequence">{result.seq.map((p,i)=><span key={p} className="sequence-step"><span>P{p}</span>{i<result.seq.length-1&&<ArrowRight size={15}/>}</span>)}</div>:<p className="result-explanation">No complete safe sequence was found for this resource state.</p>}<h3 className="subheading">Need = Maximum − Allocation</h3><div className="table-scroll"><table><thead><tr><th>Process</th>{result.need[0].map((_,j)=><th key={j}>R{j}</th>)}</tr></thead><tbody>{result.need.map((row,i)=><tr key={i}><td>P{i}</td>{row.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div><p className="footnote">Preview calculation only. Validate with <code>make -C engine/src/banker clean test</code> and <code>./engine/src/banker/banker</code>.</p></section>:<section className="panel"><EmptyState icon={ShieldCheck} title="No safety check yet" text="Submit the matrices to calculate Need and determine whether a safe sequence exists."/></section>}</div>;
 }
+
+function SharedMemoryPage({message,setMessage,result,busy,apiStatus,runApi}) {
+  const valid = message.trim().length > 0 && new TextEncoder().encode(message).length <= 255;
+  return <div className="page-enter">
+    <PageHeading eyebrow="CONCURRENCY / FR4" title="Shared Memory IPC" subtitle="Send a message between two independent C processes using POSIX shared memory and named semaphores."/>
+    <div className="status-banner status-banner--teal"><div className="status-banner-icon"><Database size={19}/></div><div className="status-banner-copy"><strong>Real POSIX shared-memory implementation</strong><span>The API launches the C writer and reader processes. The reader receives the message and posts an acknowledgement semaphore.</span></div><Badge tone={apiStatus==='connected'?'success':apiStatus==='checking'?'warning':'danger'}>{apiStatus==='connected'?'API connected':apiStatus==='checking'?'Checking API':'API disconnected'}</Badge></div>
+    <div className="content-grid">
+      <section className="panel"><PanelTitle eyebrow="MESSAGE INPUT" title="Publish to shared memory" subtitle="Enter up to 255 UTF-8 bytes. The C writer publishes this message for the reader process."/>
+        <div className="form-stack"><Field label="Message to send"><textarea rows="4" maxLength={255} value={message} onChange={e=>setMessage(e.target.value)} placeholder="Enter a message for the reader process…"/></Field>
+          <div className="form-actions"><span className="footnote">{new TextEncoder().encode(message).length}/255 bytes</span><button className="button button-primary" disabled={!valid||apiStatus!=='connected'||busy} onClick={runApi}>{busy?<RefreshCw size={16}/>:<Play size={16}/>} {busy?'Running IPC exchange…':'Run real C IPC exchange'}</button></div>
+          {apiStatus!=='connected'&&<p className="footnote">Start FastAPI in Ubuntu: <code>python3 -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000</code></p>}
+        </div><div className="info-note"><CircleHelp size={15}/> The API serializes exchanges because this C demonstration uses fixed POSIX object names. No browser-side simulation is used.</div>
+      </section>
+      <section className="panel"><PanelTitle eyebrow="PROCESS EXCHANGE" title="Writer → Shared Memory → Reader" subtitle="Two separate C processes synchronize through ready and acknowledgement semaphores."/>
+        <div className="safe-sequence"><span className="sequence-step"><span>Writer</span><ArrowRight size={15}/></span><span className="sequence-step"><span>Shared memory</span><ArrowRight size={15}/></span><span className="sequence-step"><span>Reader</span></span></div>
+        {result?<><div className="summary-strip"><Check size={16}/><code>Reader acknowledged sequence {result.sequence}</code></div><div className="form-stack"><Field label="Message sent by writer"><textarea rows="2" readOnly value={result.message_sent}/></Field><Field label="Message received by reader"><textarea rows="2" readOnly value={result.message_received}/></Field></div><Badge tone="success">Acknowledgement received</Badge><h3 className="subheading">Writer output</h3><pre className="terminal-line terminal-line--output">{result.writer_output}</pre><h3 className="subheading">Reader output</h3><pre className="terminal-line terminal-line--output">{result.reader_output}</pre></>:<EmptyState icon={Database} title="No IPC exchange yet" text="Send a message to launch the writer and reader processes and display their actual C output here."/>}
+      </section>
+    </div>
+    <section className="panel"><PanelTitle eyebrow="BUILD & TEST" title="Run independently from Ubuntu" subtitle="You can also test the C module without the dashboard."/><CodeLine>make -C engine/src/shared_memory clean test</CodeLine><CodeLine>./engine/src/shared_memory/shared_memory writer "Hello from CampusCompute"</CodeLine><p className="footnote">For the standalone reader command, run it in a second terminal while the writer is waiting for acknowledgement.</p></section>
+  </div>;
+}
+
 function ProducerPage({count,setCount,notify,apiBase,setApiBase,apiStatus,events,summary,busy,runApi}) {
   const validCount = Number.isInteger(Number(count)) && Number(count) >= 1 && Number(count) <= 100000;
-  return <div className="page-enter"><PageHeading eyebrow="CONCURRENCY / FR3" title="Producer–Consumer" subtitle="Execute the real POSIX-threaded C logger through the localhost API and inspect its event log."/><div className="status-banner status-banner--teal"><div className="status-banner-icon"><Activity size={19}/></div><div className="status-banner-copy"><strong>POSIX producer–consumer module is implemented</strong><span>The adapter invokes the fixed C executable, parses the temporary TSV log, and returns those real events.</span></div><Badge tone={apiStatus==='connected'?'success':apiStatus==='checking'?'warning':'danger'}>{apiStatus==='connected'?'API connected':apiStatus==='checking'?'Checking API':'API disconnected'}</Badge></div><div className="content-grid"><section className="panel"><PanelTitle eyebrow="LOCAL RUN CONFIGURATION" title="Run C engine" subtitle="Requests are sent only to the configured local API origin."/><div className="form-stack"><Field label="API base URL"><input value={apiBase} onChange={e=>setApiBase(e.target.value.trim())} placeholder="http://127.0.0.1:8001" /></Field><Field label="Number of events (1–100000)"><input type="number" min="1" max="100000" step="1" value={count} onChange={e=>setCount(e.target.value)}/></Field><button className="button button-primary button-full" disabled={!validCount||apiStatus!=='connected'||busy} onClick={runApi}>{busy?<RefreshCw size={16}/>:<Play size={16}/>} {busy?'Running C module…':'Run real C module'}</button>{apiStatus!=='connected'&&<p className="footnote">Start the adapter from the repository root in Ubuntu/WSL: <code>python3 -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8001</code></p>}</div><div className="info-note"><CircleHelp size={15}/> The API validates this count and calls the fixed executable with shell execution disabled. It does not run browser-supplied commands.</div></section><section className="panel"><PanelTitle eyebrow="REAL ENGINE OUTPUT" title="Runtime summary" subtitle={events.length?'Returned by the C executable':'No event log loaded yet.'} action={events.length?<Badge tone="success">C engine</Badge>:null}/>{summary&&<div className="summary-strip"><Check size={16}/><code>{summary}</code></div>}{events.length?<div className="table-scroll"><table><thead><tr><th>Time</th><th>Sequence</th><th>Message</th></tr></thead><tbody>{events.map(event=><tr key={event.sequence}><td>{event.timestamp}</td><td>{event.sequence}</td><td>{event.message}</td></tr>)}</tbody></table></div>:<EmptyState icon={FileText} title="No runtime events loaded" text="When the API is connected, run a batch to display real event-log rows here."/>}</section></div><section className="panel"><PanelTitle eyebrow="BUILD & TEST" title="Direct CLI fallback" subtitle="The engine stays usable when the dashboard or API is stopped."/><CodeLine>make -C engine/src/producer_consumer clean test</CodeLine><CodeLine>mkdir -p logs</CodeLine><CodeLine>./engine/src/producer_consumer/producer_consumer {count} logs/activity.log</CodeLine></section></div>;
+  return <div className="page-enter"><PageHeading eyebrow="CONCURRENCY / FR3" title="Producer–Consumer" subtitle="Execute the real POSIX-threaded C logger through the localhost API and inspect its event log."/><div className="status-banner status-banner--teal"><div className="status-banner-icon"><Activity size={19}/></div><div className="status-banner-copy"><strong>POSIX producer–consumer module is implemented</strong><span>The adapter invokes the fixed C executable, parses the temporary TSV log, and returns those real events.</span></div><Badge tone={apiStatus==='connected'?'success':apiStatus==='checking'?'warning':'danger'}>{apiStatus==='connected'?'API connected':apiStatus==='checking'?'Checking API':'API disconnected'}</Badge></div><div className="content-grid"><section className="panel"><PanelTitle eyebrow="LOCAL RUN CONFIGURATION" title="Run C engine" subtitle="Requests are sent only to the configured local API origin."/><div className="form-stack"><Field label="API base URL"><input value={apiBase} onChange={e=>setApiBase(e.target.value.trim())} placeholder="http://127.0.0.1:8000" /></Field><Field label="Number of events (1–100000)"><input type="number" min="1" max="100000" step="1" value={count} onChange={e=>setCount(e.target.value)}/></Field><button className="button button-primary button-full" disabled={!validCount||apiStatus!=='connected'||busy} onClick={runApi}>{busy?<RefreshCw size={16}/>:<Play size={16}/>} {busy?'Running C module…':'Run real C module'}</button>{apiStatus!=='connected'&&<p className="footnote">Start the adapter from the repository root in Ubuntu/WSL: <code>python3 -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000</code></p>}</div><div className="info-note"><CircleHelp size={15}/> The API validates this count and calls the fixed executable with shell execution disabled. It does not run browser-supplied commands.</div></section><section className="panel"><PanelTitle eyebrow="REAL ENGINE OUTPUT" title="Runtime summary" subtitle={events.length?'Returned by the C executable':'No event log loaded yet.'} action={events.length?<Badge tone="success">C engine</Badge>:null}/>{summary&&<div className="summary-strip"><Check size={16}/><code>{summary}</code></div>}{events.length?<div className="table-scroll"><table><thead><tr><th>Time</th><th>Sequence</th><th>Message</th></tr></thead><tbody>{events.map(event=><tr key={event.sequence}><td>{event.timestamp}</td><td>{event.sequence}</td><td>{event.message}</td></tr>)}</tbody></table></div>:<EmptyState icon={FileText} title="No runtime events loaded" text="When the API is connected, run a batch to display real event-log rows here."/>}</section></div><section className="panel"><PanelTitle eyebrow="BUILD & TEST" title="Direct CLI fallback" subtitle="The engine stays usable when the dashboard or API is stopped."/><CodeLine>make -C engine/src/producer_consumer clean test</CodeLine><CodeLine>mkdir -p logs</CodeLine><CodeLine>./engine/src/producer_consumer/producer_consumer {count} logs/activity.log</CodeLine></section></div>;
 }
 function TerminalPage({notify}) {
   const [input, setInput] = useState('');
@@ -281,14 +316,14 @@ function TerminalPage({notify}) {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [lines, setLines] = useState([
     {type:'system', text:'CampusCompute terminal · Ubuntu interactive backend'},
-    {type:'muted', text:'Connecting to the local command runner at http://127.0.0.1:8001 …'},
+    {type:'muted', text:'Connecting to the local command runner at http://127.0.0.1:8000 …'},
     {type:'success', text:'Run ./engine/src/scheduler/cpu_scheduler to start an interactive session. Enter sends input to the running program.'}
   ]);
   const [cwd, setCwd] = useState('.');
   const [busy, setBusy] = useState(false);
   const [connected, setConnected] = useState(false);
   const [sessionId, setSessionId] = useState('');
-  const apiBase = 'http://127.0.0.1:8001';
+  const apiBase = 'http://127.0.0.1:8000';
   const quickCommands = ['help', 'project', 'modules', 'pwd', 'ls', 'git status', 'build scheduler', 'test scheduler'];
 
   useEffect(() => {
@@ -450,7 +485,7 @@ function TerminalPage({notify}) {
     <div className={connected ? 'terminal-notice terminal-notice--connected' : 'terminal-notice'}>
       {connected ? <Check size={17}/> : <AlertTriangle size={17}/>}
       <div><strong>{connected ? (sessionId ? 'Interactive program running' : 'Ubuntu terminal backend connected') : 'Local backend required'}</strong>
-        <p>{connected ? 'Interactive sessions keep the process alive and send each Enter key input to the running program.' : <>Start the API from the CampusCompute repository root in Ubuntu: <code>python3 -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8001</code></>}</p>
+        <p>{connected ? 'Interactive sessions keep the process alive and send each Enter key input to the running program.' : <>Start the API from the CampusCompute repository root in Ubuntu: <code>python3 -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000</code></>}</p>
         <p>Interactive execution is limited to executable files inside the CampusCompute repository. Use 0 in the scheduler menu to exit normally.</p>
       </div>
     </div>
