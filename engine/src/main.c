@@ -102,7 +102,8 @@ static bool authenticate_student(char *student_name, size_t name_size,
     (void)snprintf(student_srn, srn_size, "%s", srn);
     return true;
 }
-\nstatic void handle_signal(int signal_number)
+
+static void handle_signal(int signal_number)
 {
     (void)signal_number;
     interrupted = 1;
