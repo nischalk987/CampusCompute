@@ -6,6 +6,9 @@ LDLIBS ?= -lm
 .PHONY: all clean test
 all: cpu_scheduler
 
+libcampuscompute_scheduler.so: src/scheduler.c include/scheduler.h ../job_manager/src/job_manager.c ../job_manager/include/job_manager.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) -fPIC -shared -o $@ src/scheduler.c ../job_manager/src/job_manager.c $(LDLIBS)
+
 cpu_scheduler: src/main.c src/scheduler.c include/scheduler.h ../job_manager/src/job_manager.c ../job_manager/include/job_manager.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ src/main.c src/scheduler.c ../job_manager/src/job_manager.c $(LDLIBS)
 
@@ -18,4 +21,4 @@ test: tests/test_scheduler cpu_scheduler
 	@echo "FR2 CLI smoke test passed."
 
 clean:
-	rm -f cpu_scheduler tests/test_scheduler
+	rm -f cpu_scheduler libcampuscompute_scheduler.so tests/test_scheduler
