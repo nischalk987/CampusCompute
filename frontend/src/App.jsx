@@ -333,53 +333,72 @@ function JobsPage({jobs,setPage,form,setForm,addJob}) {
 function SchedulingPage({jobs,policy,setPolicy,quantum,setQuantum,schedule,runSchedule}) {
   return <div className="page-enter"><PageHeading eyebrow="CORE OS / FR2" title="CPU Scheduling" subtitle="Compare the three supported policies with the same job set."/><div className="stats-grid stats-grid--three"><StatCard icon={Cpu} label="Available policies" value="3" foot="FCFS · Round Robin · Priority" tone="indigo"/><StatCard icon={Layers3} label="Jobs in workspace" value={jobs.length} foot="Editable job records" tone="teal"/><StatCard icon={Clock3} label="Quantum" value={policy==='Round Robin'?quantum:'—'} foot="Used only for Round Robin" tone="purple"/></div><div className="content-grid"><section className="panel"><PanelTitle eyebrow="RUN CONFIGURATION" title="Scheduler controls" subtitle="Choose a policy and calculate using the jobs entered in this workspace."/><div className="form-stack"><Field label="Scheduling policy"><select value={policy} onChange={e=>setPolicy(e.target.value)}><option>FCFS</option><option>Round Robin</option><option>Priority</option></select></Field>{policy==='Round Robin'&&<Field label="Time quantum"><input type="number" min="1" step="1" value={quantum} onChange={e=>setQuantum(e.target.value)}/></Field>}<div className="policy-help"><Badge tone="info">{policy}</Badge><p>{policy==='FCFS'?'Jobs execute in arrival order.':policy==='Round Robin'?'Ready jobs receive a fixed time slice in queue order.':'The lowest numeric priority is selected first, without preemption.'}</p></div><button className="button button-primary button-full" onClick={runSchedule}><Play size={16}/> Run calculation</button></div></section><section className="panel"><PanelTitle eyebrow="INPUT JOB SET" title="Current jobs" subtitle="Edit these on Jobs & Processes."/><div className="table-scroll"><table><thead><tr><th>Job</th><th>Arrival</th><th>Burst</th><th>Priority</th></tr></thead><tbody>{jobs.map(j=><tr key={j.id}><td><span className="job-id">{j.id}</span></td><td>{j.arrival}</td><td>{j.burst}</td><td>{j.priority}</td></tr>)}</tbody></table></div><button className="button button-secondary button-full margin-top" onClick={()=>window.dispatchEvent(new CustomEvent('campuscompute-navigate',{detail:'jobs'}))}>Job set is editable on the Jobs screen <ArrowRight size={15}/></button></section></div>{schedule?<section className="panel result-panel"><PanelTitle eyebrow="SCHEDULING RESULT" title={schedule.policy+" result"} subtitle="Calculated from the current job records in this workspace." action={<Badge tone="info">Interactive calculation</Badge>}/><div className="mini-stats"><div><span>Average waiting</span><strong>{schedule.avgWaiting.toFixed(2)}</strong></div><div><span>Average turnaround</span><strong>{schedule.avgTurnaround.toFixed(2)}</strong></div><div><span>Makespan</span><strong>{Math.max(...schedule.rows.map(r=>r.completion))}</strong></div></div><div className="gantt"><div className="gantt-label">Execution timeline</div><div className="gantt-track">{schedule.timeline.map((t,i)=><div key={i} className={`gantt-piece gantt-piece--${i%5}`} style={{flexGrow:t.end-t.start,flexBasis:0}} title={`${t.id}: ${t.start}–${t.end}`}><strong>{t.id}</strong><small>{t.start}–{t.end}</small></div>)}</div></div><div className="table-scroll"><table><thead><tr><th>Job</th><th>Completion</th><th>Turnaround</th><th>Waiting</th></tr></thead><tbody>{schedule.rows.map(j=><tr key={j.id}><td><span className="job-id">{j.id}</span></td><td>{j.completion}</td><td>{j.turnaround}</td><td>{j.waiting}</td></tr>)}</tbody></table></div><p className="footnote">For verified results and assessment evidence, run <code>make -C engine/src/scheduler clean test</code> then <code>./engine/src/scheduler/cpu_scheduler</code> in Linux/Ubuntu.</p></section>:<section className="panel"><EmptyState icon={BarChart3} title="Ready for your first run" text="Add process records on Jobs & Processes, choose a scheduling policy and run the calculation."/></section>}</div>;
 }
+function ResourceAllocationGraph({allocation,need}) {
+  const processCount=allocation.length, resourceCount=allocation[0]?.length||0;
+  const height=Math.max(190,Math.max(processCount,resourceCount)*76+35);
+  const processY=i=>45+i*(height-70)/Math.max(1,processCount-1);
+  const resourceY=i=>45+i*(height-70)/Math.max(1,resourceCount-1);
+  return <section className="panel rag-panel">
+    <div className="banker-section-heading"><div><span className="eyebrow">RESOURCE FLOW VISUALIZATION</span><h2>Resource Allocation Graph</h2><p>Allocation arrows point Resource → Process; remaining-need arrows point Process → Resource.</p></div><span className="banker-step">RAG</span></div>
+    <div className="rag-legend"><span><i className="rag-legend-allocation"/>Allocated resources</span><span><i className="rag-legend-need"/>Remaining resource need</span></div>
+    <div className="rag-scroll"><svg className="rag-svg" viewBox={`0 0 680 ${height}`} role="img" aria-label="Resource allocation graph showing process and resource nodes with allocation and remaining-need arrows">
+      <defs><marker id="rag-allocation-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#0f766e"/></marker><marker id="rag-need-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 z" fill="#6658d3"/></marker></defs>
+      {allocation.flatMap((row,p)=>row.map((value,r)=>value>0?<g key={`a-${p}-${r}`}><path d={`M 510 ${resourceY(r)} C 400 ${resourceY(r)}, 280 ${processY(p)}, 170 ${processY(p)}`} fill="none" stroke="#0f766e" strokeWidth="2.2" markerEnd="url(#rag-allocation-arrow)"/><text x="340" y={(resourceY(r)+processY(p))/2-6} className="rag-edge-label rag-edge-label--allocation">{value}</text></g>:null))}
+      {need.flatMap((row,p)=>row.map((value,r)=>value>0?<g key={`n-${p}-${r}`}><path d={`M 170 ${processY(p)+5} C 280 ${processY(p)+5}, 400 ${resourceY(r)+5}, 510 ${resourceY(r)+5}`} fill="none" stroke="#6658d3" strokeWidth="1.8" strokeDasharray="5 4" markerEnd="url(#rag-need-arrow)"/><text x="340" y={(resourceY(r)+processY(p))/2+12} className="rag-edge-label rag-edge-label--need">{value}</text></g>:null))}
+      {allocation.map((_,i)=><g key={`p-${i}`}><rect x="65" y={processY(i)-19} width="105" height="38" rx="9" fill="#eef2ff" stroke="#c9c5ff"/><text x="117" y={processY(i)+4} textAnchor="middle" className="rag-node-label">P{i}</text></g>)}
+      {Array.from({length:resourceCount},(_,i)=><g key={`r-${i}`}><rect x="510" y={resourceY(i)-19} width="105" height="38" rx="9" fill="#e4f6f0" stroke="#b8e6d6"/><text x="562" y={resourceY(i)+4} textAnchor="middle" className="rag-node-label">R{i}</text></g>)}
+    </svg></div>
+    <p className="rag-caption">Numbers beside arrows show the allocated amount or remaining need. A remaining-need edge represents a process claim, not a currently blocked request.</p>
+  </section>;
+}
 function BankerPage({available,setAvailable,alloc,setAlloc,max,setMax,result,run}) {
-  const sample = () => {
-    setAvailable('3 3 2');
-    setAlloc('0 1 0; 2 0 0; 3 0 2; 2 1 1; 0 0 2');
-    setMax('7 5 3; 3 2 2; 9 0 2; 2 2 2; 4 3 3');
-  };
-  const clear = () => { setAvailable(''); setAlloc(''); setMax(''); };
-  const resources = available.trim() ? available.trim().split(/\\s+/).length : 0;
-  const processes = alloc.trim() ? alloc.trim().split(';').filter(row=>row.trim()).length : 0;
+  const parseVector=raw=>raw.trim()?raw.trim().split(/\s+/):[];
+  const parseMatrix=raw=>raw.trim()?raw.trim().split(/[;\n]+/).filter(row=>row.trim()).map(row=>row.trim().split(/\s+/)): [];
+  const vector=parseVector(available);
+  const allocation=parseMatrix(alloc);
+  const maximum=parseMatrix(max);
+  const resources=Math.max(1,vector.length,allocation[0]?.length||0,maximum[0]?.length||0);
+  const processes=Math.max(1,allocation.length,maximum.length);
+  const normalizeRows=(rows,count)=>Array.from({length:count},(_,i)=>Array.from({length:resources},(_,j)=>rows[i]?.[j]??'0'));
+  const allocationRows=normalizeRows(allocation,processes);
+  const maximumRows=normalizeRows(maximum,processes);
+  const updateVector=(index,value)=>{const next=Array.from({length:resources},(_,i)=>vector[i]??'0');next[index]=value;setAvailable(next.join(' '));};
+  const updateMatrix=(setter,rows,p,r,value)=>{const next=normalizeRows(rows,processes).map(row=>[...row]);next[p][r]=value;setter(next.map(row=>row.join(' ')).join('; '));};
+  const addResource=()=>{if(resources>=32)return;setAvailable([...Array.from({length:resources},(_,i)=>vector[i]??'0'),'0'].join(' '));setAlloc(allocationRows.map(row=>[...row,'0'].join(' ')).join('; '));setMax(maximumRows.map(row=>[...row,'0'].join(' ')).join('; '));};
+  const removeResource=()=>{if(resources<=1)return;setAvailable(vector.slice(0,-1).join(' '));setAlloc(allocationRows.map(row=>row.slice(0,-1).join(' ')).join('; '));setMax(maximumRows.map(row=>row.slice(0,-1).join(' ')).join('; '));};
+  const addProcess=()=>{if(processes>=64)return;setAlloc([...allocationRows.map(row=>row.join(' ')),Array(resources).fill('0').join(' ')].join('; '));setMax([...maximumRows.map(row=>row.join(' ')),Array(resources).fill('0').join(' ')].join('; '));};
+  const removeProcess=()=>{if(processes<=1)return;setAlloc(allocationRows.slice(0,-1).map(row=>row.join(' ')).join('; '));setMax(maximumRows.slice(0,-1).map(row=>row.join(' ')).join('; '));};
+  const sample=()=>{setAvailable('3 3 2');setAlloc('0 1 0; 2 0 0; 3 0 2; 2 1 1; 0 0 2');setMax('7 5 3; 3 2 2; 9 0 2; 2 2 2; 4 3 3');};
+  const clear=()=>{setAvailable('0');setAlloc('0');setMax('0');};
   return <div className="page-enter banker-page">
-    <PageHeading eyebrow="RESOURCE MANAGEMENT / FR5" title="Banker's Algorithm" subtitle="Model resource allocation, calculate remaining needs and determine whether the system is in a safe state."/>
-    <div className="banker-intro">
-      <div className="banker-intro-icon"><ShieldCheck size={22}/></div>
-      <div><strong>Deadlock avoidance workspace</strong><p>Enter the resources currently available, each process allocation and its maximum demand. Run the safety algorithm to see whether all processes can finish safely.</p></div>
-      <Badge tone="success">FR5 implemented</Badge>
-    </div>
+    <PageHeading eyebrow="RESOURCE MANAGEMENT / FR5" title="Banker's Algorithm" subtitle="Build the resource tables visually, calculate remaining needs and inspect the resource-allocation graph."/>
+    <div className="banker-intro"><div className="banker-intro-icon"><ShieldCheck size={22}/></div><div><strong>Deadlock avoidance workspace</strong><p>Add process rows and resource columns with buttons. Enter Available, Allocation and Maximum values, then run the safety algorithm.</p></div><Badge tone="success">FR5 implemented</Badge></div>
     <form className="banker-workspace" onSubmit={run}>
       <section className="panel banker-input-panel">
-        <div className="banker-section-heading"><div><span className="eyebrow">STEP 01 · SYSTEM RESOURCES</span><h2>Available resources</h2><p>Enter the number of free instances for each resource type, separated by spaces.</p></div><span className="banker-step">01</span></div>
-        <label className="banker-vector-label" htmlFor="banker-available">Available vector</label>
-        <input id="banker-available" className="banker-vector-input" value={available} onChange={e=>setAvailable(e.target.value)} placeholder="e.g. 3 3 2" required/>
-        <div className="banker-hint">Example: <code>3 3 2</code> means 3 instances of R0, 3 of R1 and 2 of R2.</div>
+        <div className="banker-section-heading"><div><span className="eyebrow">STEP 01 · SYSTEM RESOURCES</span><h2>Available resources</h2><p>Enter the free instances for each resource type. Use the controls to add or remove resource columns.</p></div><span className="banker-step">01</span></div>
+        <div className="banker-grid-controls"><span>{resources} resource types</span><button type="button" className="button button-secondary" onClick={addResource} disabled={resources>=32}>+ Add resource</button><button type="button" className="button button-secondary" onClick={removeResource} disabled={resources<=1}>− Remove resource</button></div>
+        <div className="banker-vector-grid">{Array.from({length:resources},(_,r)=><label className="banker-cell" key={r}><span>Available R{r}</span><input type="number" min="0" step="1" value={vector[r]??'0'} onChange={e=>updateVector(r,e.target.value)}/></label>)}</div>
+        <div className="banker-hint">Available is the number of currently free instances of each resource type.</div>
       </section>
       <div className="banker-matrix-grid">
-        <section className="panel banker-matrix-panel">
-          <div className="banker-section-heading"><div><span className="eyebrow">STEP 02 · CURRENT STATE</span><h2>Allocation matrix</h2><p>Resources currently assigned to each process.</p></div><span className="banker-step">02</span></div>
-          <label className="banker-vector-label" htmlFor="banker-allocation">Process rows</label>
-          <textarea id="banker-allocation" rows="6" value={alloc} onChange={e=>setAlloc(e.target.value)} placeholder={'0 1 0\n2 0 0\n3 0 2\n2 1 1\n0 0 2'} required/>
-          <div className="banker-hint">Separate resource values with spaces and processes with new lines or semicolons.</div>
-        </section>
-        <section className="panel banker-matrix-panel">
-          <div className="banker-section-heading"><div><span className="eyebrow">STEP 03 · CLAIMED RESOURCES</span><h2>Maximum matrix</h2><p>Maximum resource demand of each process.</p></div><span className="banker-step">03</span></div>
-          <label className="banker-vector-label" htmlFor="banker-maximum">Process rows</label>
-          <textarea id="banker-maximum" rows="6" value={max} onChange={e=>setMax(e.target.value)} placeholder={'7 5 3\n3 2 2\n9 0 2\n2 2 2\n4 3 3'} required/>
-          <div className="banker-hint">Keep the same number of processes and resource columns as Allocation.</div>
-        </section>
+        {[{title:'Allocation matrix',eyebrow:'STEP 02 · CURRENT STATE',description:'Resources currently assigned to each process.',rows:allocationRows,setter:setAlloc},{title:'Maximum matrix',eyebrow:'STEP 03 · CLAIMED RESOURCES',description:'Maximum resource demand for each process.',rows:maximumRows,setter:setMax}].map(matrix=><section className="panel banker-matrix-panel" key={matrix.title}>
+          <div className="banker-section-heading"><div><span className="eyebrow">{matrix.eyebrow}</span><h2>{matrix.title}</h2><p>{matrix.description}</p></div><span className="banker-step">{matrix.eyebrow.slice(5,7)}</span></div>
+          <div className="banker-table-wrap"><table className="banker-entry-table"><thead><tr><th>Process</th>{Array.from({length:resources},(_,r)=><th key={r}>R{r}</th>)}</tr></thead><tbody>{matrix.rows.map((row,p)=><tr key={p}><td><span className="job-id">P{p}</span></td>{row.map((value,r)=><td key={r}><input aria-label={`${matrix.title} P${p} R${r}`} type="number" min="0" step="1" value={value} onChange={e=>updateMatrix(matrix.setter,matrix.rows,p,r,e.target.value)}/></td>)}</tr>)}</tbody></table></div>
+        </section>)}
       </div>
-      <div className="banker-actions"><div className="banker-input-summary"><span>{resources} resource types</span><span>{processes} processes</span></div><div className="form-actions"><button type="button" className="button button-secondary" onClick={clear}>Clear inputs</button><button type="button" className="button button-secondary" onClick={sample}>Load example</button><button className="button button-primary" type="submit"><ShieldCheck size={16}/> Run safety algorithm</button></div></div>
+      <div className="banker-actions"><div className="banker-input-summary"><span>{resources} resource types</span><span>{processes} processes</span><button type="button" className="button button-secondary" onClick={addProcess} disabled={processes>=64}>+ Add process</button><button type="button" className="button button-secondary" onClick={removeProcess} disabled={processes<=1}>− Remove process</button></div><div className="form-actions"><button type="button" className="button button-secondary" onClick={clear}>Clear inputs</button><button type="button" className="button button-secondary" onClick={sample}>Load example</button><button className="button button-primary" type="submit"><ShieldCheck size={16}/> Run safety algorithm</button></div></div>
     </form>
-    {result ? <section className="panel banker-result-panel">
-      <div className="banker-result-heading"><div><span className="eyebrow">STEP 04 · ALGORITHM OUTPUT</span><h2>Safety analysis</h2><p>Need = Maximum − Allocation</p></div><Badge tone={result.safe?'success':'danger'}>{result.safe?'SAFE STATE':'UNSAFE STATE'}</Badge></div>
-      <div className={`banker-verdict ${result.safe?'banker-verdict--safe':'banker-verdict--unsafe'}`}><div className="banker-verdict-mark">{result.safe?<Check size={23}/>:<AlertTriangle size={23}/>}</div><div><strong>{result.safe?'A safe sequence exists':'No safe sequence exists'}</strong><p>{result.safe?'The system can complete every process in a safe order without entering deadlock.':'The current available resources are not sufficient to find a complete safe sequence for all processes.'}</p></div></div>
-      {result.safe&&<div className="banker-sequence-block"><h3>Safe execution sequence</h3><div className="banker-sequence">{result.seq.map((p,i)=><div className="banker-sequence-item" key={p}><span>P{p}</span>{i<result.seq.length-1&&<ArrowRight size={16}/>}</div>)}</div></div>}
-      <div className="banker-need-heading"><div><h3>Need matrix</h3><p>Remaining resources each process may still request.</p></div><span>Need = Max − Allocation</span></div>
-      <div className="table-scroll banker-need-table"><table><thead><tr><th>Process</th>{result.need[0].map((_,j)=><th key={j}>Resource R{j}</th>)}</tr></thead><tbody>{result.need.map((row,i)=><tr key={i}><td><span className="job-id">P{i}</span></td>{row.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div>
-      <p className="banker-source-note">This is the interactive browser calculation. For verified C-engine output, run <code>make -C engine/src/banker clean test</code> and <code>./engine/src/banker/banker</code> in Ubuntu.</p>
-    </section> : <section className="panel banker-empty"><div className="banker-empty-icon"><BarChart3 size={22}/></div><div><strong>Your safety analysis will appear here</strong><p>Complete the resource inputs above and select <b>Run safety algorithm</b>.</p></div></section>}
+    {result ? <>
+      <section className="panel banker-result-panel">
+        <div className="banker-result-heading"><div><span className="eyebrow">STEP 04 · ALGORITHM OUTPUT</span><h2>Safety analysis</h2><p>Need = Maximum − Allocation</p></div><Badge tone={result.safe?'success':'danger'}>{result.safe?'SAFE STATE':'UNSAFE STATE'}</Badge></div>
+        <div className={`banker-verdict ${result.safe?'banker-verdict--safe':'banker-verdict--unsafe'}`}><div className="banker-verdict-mark">{result.safe?<Check size={23}/>:<AlertTriangle size={23}/>}</div><div><strong>{result.safe?'A safe sequence exists':'No safe sequence exists'}</strong><p>{result.safe?'The system can complete every process in a safe order without entering deadlock.':'The current available resources are not sufficient to find a complete safe sequence for all processes.'}</p></div></div>
+        {result.safe&&<div className="banker-sequence-block"><h3>Safe execution sequence</h3><div className="banker-sequence">{result.seq.map((p,i)=><div className="banker-sequence-item" key={p}><span>P{p}</span>{i<result.seq.length-1&&<ArrowRight size={16}/>}</div>)}</div></div>}
+        <div className="banker-need-heading"><div><h3>Need matrix</h3><p>Remaining resources each process may still request.</p></div><span>Need = Max − Allocation</span></div>
+        <div className="table-scroll banker-need-table"><table><thead><tr><th>Process</th>{result.need[0].map((_,j)=><th key={j}>Resource R{j}</th>)}</tr></thead><tbody>{result.need.map((row,i)=><tr key={i}><td><span className="job-id">P{i}</span></td>{row.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div>
+      </section>
+      <ResourceAllocationGraph allocation={allocationRows.map(row=>row.map(Number))} need={result.need}/>
+      <p className="banker-source-note">The dashboard graph uses Resource → Process for allocated instances and Process → Resource for remaining need claims. Verify the same state in the Ubuntu C CLI with <code>./engine/src/banker/banker</code>.</p>
+    </> : <section className="panel banker-empty"><div className="banker-empty-icon"><BarChart3 size={22}/></div><div><strong>Your safety analysis and graph will appear here</strong><p>Enter the resource tables and select <b>Run safety algorithm</b>.</p></div></section>}
   </div>;
 }
 
