@@ -16,13 +16,90 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <unistd.h>
+#include <unistd.h>\n#include <termios.h>
 
 #define INPUT_SIZE 256
 
 static volatile sig_atomic_t interrupted = 0;
 
-static void handle_signal(int signal_number)
+
+static bool authenticate_student(char *student_name, size_t name_size,
+                                 char *student_srn, size_t srn_size)
+{
+    char srn[INPUT_SIZE];
+    char password[INPUT_SIZE];
+    int password_pipe[2];
+
+    puts("\\n========== STUDENT LOGIN ==========");
+    if (!read_line("Enter SRN      : ", srn, sizeof(srn))) return false;
+    if (srn[0] == '\\0' || strlen(srn) >= srn_size) {
+        puts("Invalid SRN.");
+        return false;
+    }
+
+    printf("Enter Password : ");
+    fflush(stdout);
+    struct termios old_term, new_term;
+    bool hidden = (tcgetattr(STDIN_FILENO, &old_term) == 0);
+    if (hidden) {
+        new_term = old_term;
+        new_term.c_lflag &= (tcflag_t)~ECHO;
+        (void)tcsetattr(STDIN_FILENO, TCSAFLUSH, &new_term);
+    }
+    bool read_ok = fgets(password, sizeof(password), stdin) != NULL;
+    if (hidden) {
+        (void)tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_term);
+        puts("");
+    }
+    if (!read_ok) return false;
+    password[strcspn(password, "\\r\\n")] = '\\0';
+    if (password[0] == '\\0') {
+        puts("Password cannot be empty.");
+        return false;
+    }
+
+    if (pipe(password_pipe) < 0) {
+        perror("pipe");
+        return false;
+    }
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("fork");
+        close(password_pipe[0]); close(password_pipe[1]);
+        return false;
+    }
+    if (pid == 0) {
+        close(password_pipe[1]);
+        if (dup2(password_pipe[0], STDIN_FILENO) < 0) _exit(126);
+        close(password_pipe[0]);
+        execlp("python3", "python3", "engine/authenticate_cli.py", srn, (char *)NULL);
+        perror("python3");
+        _exit(127);
+    }
+
+    close(password_pipe[0]);
+    size_t length = strlen(password);
+    bool sent = write(password_pipe[1], password, length) == (ssize_t)length &&
+                write(password_pipe[1], "\\n", 1) == 1;
+    close(password_pipe[1]);
+    memset(password, 0, sizeof(password));
+
+    int status = 0;
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno == EINTR) continue;
+        perror("waitpid");
+        return false;
+    }
+    if (!sent || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        puts("Authentication failed. Check your SRN/password and register through the web app if you do not have an account.");
+        return false;
+    }
+
+    (void)snprintf(student_name, name_size, "%s", srn);
+    (void)snprintf(student_srn, srn_size, "%s", srn);
+    return true;
+}
+\nstatic void handle_signal(int signal_number)
 {
     (void)signal_number;
     interrupted = 1;
@@ -616,8 +693,17 @@ int main(void)
     }
 
     puts("========================================");
-    puts("       CAMPUSCOMPUTE OS ENGINE");
+    puts("       CAMPUSCOMPUTE OS LAB");
     puts("========================================");
+
+    char student_name[INPUT_SIZE];
+    char student_srn[INPUT_SIZE];
+    if (!authenticate_student(student_name, sizeof(student_name),
+                             student_srn, sizeof(student_srn))) {
+        return EXIT_FAILURE;
+    }
+    printf("\\nAuthentication successful!\\nWelcome, %s (%s).\\n",
+           student_name, student_srn);
 
     while (!interrupted) {
         puts("\n========== MAIN MENU ==========");
