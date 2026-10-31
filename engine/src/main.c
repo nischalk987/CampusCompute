@@ -368,13 +368,16 @@ static void scheduler_menu(void)
         puts("1. Enter/replace jobs");
         puts("2. Run FCFS");
         puts("3. Run Round Robin");
-        puts("4. Run Priority");
-        puts("5. Compare all policies");
-        puts("6. List jobs");
+        puts("4. Run non-preemptive Priority");
+        puts("5. Run SJF (non-preemptive)");
+        puts("6. Run SRTF (preemptive)");
+        puts("7. Run Multilevel Queue");
+        puts("8. Compare all six policies");
+        puts("9. List jobs");
         puts("0. Back");
 
         long choice;
-        if (!read_number("Choice: ", &choice, 0, 6)) break;
+        if (!read_number("Choice: ", &choice, 0, 9)) break;
         if (choice == 0) break;
 
         if (choice == 1) {
@@ -391,7 +394,7 @@ static void scheduler_menu(void)
             continue;
         }
 
-        if (choice == 6) {
+        if (choice == 9) {
             job_manager_list(&manager);
             continue;
         }
@@ -403,7 +406,7 @@ static void scheduler_menu(void)
 
         unsigned int quantum = 1;
 
-        if (choice == 3 || choice == 5) {
+        if (choice == 3 || choice == 8) {
             if (!read_positive_unsigned(
                     "Round Robin quantum: ", &quantum)) {
                 break;
@@ -413,19 +416,23 @@ static void scheduler_menu(void)
         SchedulingPolicy policies[] = {
             SCHED_FCFS,
             SCHED_ROUND_ROBIN,
-            SCHED_PRIORITY
+            SCHED_PRIORITY,
+            SCHED_SJF,
+            SCHED_SRTF,
+            SCHED_MULTILEVEL_QUEUE
         };
 
         int first = 0;
         int last = 0;
 
-        if (choice == 2) first = last = 0;
-        else if (choice == 3) first = last = 1;
-        else if (choice == 4) first = last = 2;
-        else if (choice == 5) {
+        if (choice >= 2 && choice <= 7) {
+            first = last = (int)choice - 2;
+        } else if (choice == 8) {
             first = 0;
-            last = 2;
-        } else continue;
+            last = 5;
+        } else {
+            continue;
+        }
 
         for (int i = first; i <= last; i++) {
             ScheduleResult result;
