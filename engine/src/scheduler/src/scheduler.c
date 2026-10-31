@@ -187,22 +187,22 @@ static bool run_round_robin_subset(const JobManager *manager, ScheduleResult *re
     sort_indices_by_arrival(manager, order);
     size_t head=0, tail=0, count=0, enqueued=0, completed=0, total=0;
     for (size_t i=0;i<n;i++) {
-        bool selected = queue_level==0 ? manager->jobs[i].priority<=0 :
-                        queue_level==1 ? manager->jobs[i].priority==1 :
-                        manager->jobs[i].priority>=2;
+        bool selected=queue_level==0?manager->jobs[i].priority<=0:
+                      queue_level==1?manager->jobs[i].priority==1:
+                      manager->jobs[i].priority>=2;
         if (selected) total++;
     }
-    while (completed < total) {
-        while (enqueued<n && manager->jobs[order[enqueued]].arrival_time<=*clock) {
+    while (completed<total) {
+        while(enqueued<n && manager->jobs[order[enqueued]].arrival_time<=*clock) {
             size_t i=order[enqueued++];
-            bool selected = queue_level==0 ? manager->jobs[i].priority<=0 :
-                            queue_level==1 ? manager->jobs[i].priority==1 :
-                            manager->jobs[i].priority>=2;
-            if (selected && !done[i] && !enqueued_flag[i]) {
-                queue[tail]=i; tail=(tail+1)%n; count++; enqueued_flag[i]=true;
+            bool selected=queue_level==0?manager->jobs[i].priority<=0:
+                          queue_level==1?manager->jobs[i].priority==1:
+                          manager->jobs[i].priority>=2;
+            if(selected&&!done[i]&&!enqueued_flag[i]) {
+                queue[tail]=i;tail=(tail+1)%n;count++;enqueued_flag[i]=true;
             }
         }
-        if (!count) {
+        if(!count) {
             unsigned int next=UINT32_MAX;
             for(size_t i=0;i<n;i++) {
                 bool selected=queue_level==0?manager->jobs[i].priority<=0:
@@ -211,17 +211,17 @@ static bool run_round_robin_subset(const JobManager *manager, ScheduleResult *re
                 if(selected&&!done[i]&&!enqueued_flag[i]&&manager->jobs[i].arrival_time<next)
                     next=manager->jobs[i].arrival_time;
             }
-            if(next==UINT32_MAX) break;
+            if(next==UINT32_MAX)break;
             *clock=next;
             continue;
         }
-        size_t i=queue[head]; head=(head+1)%n; count--;
+        size_t i=queue[head];head=(head+1)%n;count--;
         unsigned int run=remaining[i]<quantum?remaining[i]:quantum;
-        unsigned int start=*clock; *clock+=run; remaining[i]-=run;
+        unsigned int start=*clock;*clock+=run;remaining[i]-=run;
         if(!append_slice(result,manager->jobs[i].id,start,*clock,error,size)) {
             free(order);free(queue);free(enqueued_flag);return false;
         }
-        while(enqueued<n && manager->jobs[order[enqueued]].arrival_time<=*clock) {
+        while(enqueued<n&&manager->jobs[order[enqueued]].arrival_time<=*clock) {
             size_t j=order[enqueued++];
             bool selected=queue_level==0?manager->jobs[j].priority<=0:
                           queue_level==1?manager->jobs[j].priority==1:
@@ -230,8 +230,8 @@ static bool run_round_robin_subset(const JobManager *manager, ScheduleResult *re
                 queue[tail]=j;tail=(tail+1)%n;count++;enqueued_flag[j]=true;
             }
         }
-        if(remaining[i]) { queue[tail]=i;tail=(tail+1)%n;count++; }
-        else { done[i]=true;result->completion_times[i]=*clock;completed++; }
+        if(remaining[i]){queue[tail]=i;tail=(tail+1)%n;count++;}
+        else{done[i]=true;result->completion_times[i]=*clock;completed++;}
     }
     free(order);free(queue);free(enqueued_flag);
     return completed==total;
