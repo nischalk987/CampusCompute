@@ -64,7 +64,7 @@ def main() -> int:
         print("Incorrect SRN or password.", file=sys.stderr)
         return 1
 
-    print(row[0])
+    print(f'Authentication successful! Welcome, {row[0]} ({row[1]}).')
     return 0
 
 
