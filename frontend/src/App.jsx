@@ -231,7 +231,7 @@ export default function App() {
     let changed = true;
     while(changed) { changed=false; for(let i=0;i<al.length;i++) if(!finished[i]&&need[i].every((v,j)=>v<=work[j])) { work.forEach((_,j)=>work[j]+=al[i][j]); finished[i]=true;seq.push(i);changed=true; } }
     setBankerResult({ safe: finished.every(Boolean), seq, need });
-    notify('Calculated in the browser preview. Verify results against the C Banker module for authoritative OS-project output.');
+    notify('Banker's safety check calculated from the entered matrices. Use the Ubuntu C executable for authoritative assessment evidence.');
   }
 
 
@@ -271,7 +271,7 @@ export default function App() {
       <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Open navigation" onClick={()=>setMobileOpen(true)}><Menu size={20}/></button><div className="breadcrumb">Workspace <span>/</span> <strong>{activeItem?.label || 'Overview'}</strong></div></div><div className="topbar-actions"><div className="profile-menu-wrap"><button className={`student-profile-trigger ${profileMenuOpen ? 'student-profile-trigger--open' : ''}`} aria-haspopup="menu" aria-expanded={profileMenuOpen} onClick={()=>setProfileMenuOpen(open=>!open)}><span className="student-avatar">{(student.name || 'S').trim().charAt(0).toUpperCase()}</span><span className="student-profile-copy"><strong>{student.name}</strong><small>{student.srn}</small></span><ChevronDown size={15}/></button>{profileMenuOpen&&<><button className="profile-menu-backdrop" aria-label="Close profile menu" onClick={()=>setProfileMenuOpen(false)}/><div className="student-profile-menu" role="menu"><div className="profile-menu-heading"><strong>{student.name}</strong><span>{student.srn}</span></div><div className="profile-menu-divider"/><button role="menuitem" onClick={()=>{setProfileMenuOpen(false);logout();}}><ArrowRight size={15}/> Log out</button></div></>}</div><button type="button" className={`connection-pill connection-pill--${apiStatus}`} title={apiError || 'FastAPI health endpoint: ' + apiBase + '/health'} onClick={()=>{setApiStatus('checking');setApiError('Checking ' + apiBase + '/health…');window.location.reload();}}><span className={`muted-dot ${apiStatus === "connected" ? "muted-dot--connected" : ""}`}/>{apiStatus === "connected" ? "Local API connected" : apiStatus === "checking" ? "Checking local API…" : "Engine API not connected"}</button><button className="icon-button" title="Notifications" aria-label="Notifications" onClick={()=>notify('No notifications. The local engine/API is not connected yet.')}><Bell size={18}/></button><button className="help-button" onClick={()=>notify('Use each module screen to view its status, required inputs and the local run command.')}><CircleHelp size={17}/> Help</button></div></header>
       <div className="page-wrap">
         {notice&&<div className="notice" role="status"><span><BadgeCheck size={17}/></span>{notice}<button aria-label="Dismiss notice" onClick={()=>setNotice('')}><X size={15}/></button></div>}
-        {active==='overview' ? <Overview setPage={setPage} modules={moduleList} apiStatus={apiStatus} /> :
+        {active==='overview' ? <Overview setPage={setPage} modules={moduleList} apiStatus={apiStatus} jobs={jobs} /> :
           active==='jobs' ? <JobsPage jobs={jobs} setPage={setPage} form={jobForm} setForm={setJobForm} addJob={addJob} /> :
           active==='scheduling' ? <SchedulingPage jobs={jobs} policy={policy} setPolicy={setPolicy} quantum={quantum} setQuantum={setQuantum} schedule={schedule} runSchedule={runSchedule} /> :
           active==='banker' ? <BankerPage available={available} setAvailable={setAvailable} alloc={alloc} setAlloc={setAlloc} max={max} setMax={setMax} result={bankerResult} run={runBanker}/> :
@@ -306,7 +306,7 @@ export default function App() {
   </div>;
 }
 
-function Overview({ setPage, modules, apiStatus }) {
+function Overview({ setPage, modules, apiStatus, jobs }) {
   const ready = modules.filter(m=>m.status==='Implemented').length;
   return <div className="page-enter">
     <div className="welcome-row"><div><div className="eyebrow">WEDNESDAY, OCTOBER 28, 2026 <span className="eyebrow-sep">/</span> OS LABORATORY</div><h1>System overview<span className="title-period">.</span></h1><p className="page-lead">Explore your operating-systems experiments from one workspace.</p></div><button className="button button-primary" onClick={()=>setPage('terminal')}><Terminal size={16}/> Open terminal guide <ArrowRight size={15}/></button></div>
@@ -374,7 +374,7 @@ function BankerPage({available,setAvailable,alloc,setAlloc,max,setMax,result,run
     </form>
     {result ? <section className="panel banker-result-panel">
       <div className="banker-result-heading"><div><span className="eyebrow">STEP 04 · ALGORITHM OUTPUT</span><h2>Safety analysis</h2><p>Need = Maximum − Allocation</p></div><Badge tone={result.safe?'success':'danger'}>{result.safe?'SAFE STATE':'UNSAFE STATE'}</Badge></div>
-      <div className={`banker-verdict ${result.safe?'banker-verdict--safe':'banker-verdict--unsafe'}"><div className="banker-verdict-mark">{result.safe?<Check size={23}/>:<AlertTriangle size={23}/>}</div><div><strong>{result.safe?'A safe sequence exists':'No safe sequence exists'}</strong><p>{result.safe?'The system can complete every process in a safe order without entering deadlock.':'The current available resources are not sufficient to find a complete safe sequence for all processes.'}</p></div></div>
+      <div className={`banker-verdict ${result.safe?'banker-verdict--safe':'banker-verdict--unsafe'}`}><div className="banker-verdict-mark">{result.safe?<Check size={23}/>:<AlertTriangle size={23}/>}</div><div><strong>{result.safe?'A safe sequence exists':'No safe sequence exists'}</strong><p>{result.safe?'The system can complete every process in a safe order without entering deadlock.':'The current available resources are not sufficient to find a complete safe sequence for all processes.'}</p></div></div>
       {result.safe&&<div className="banker-sequence-block"><h3>Safe execution sequence</h3><div className="banker-sequence">{result.seq.map((p,i)=><div className="banker-sequence-item" key={p}><span>P{p}</span>{i<result.seq.length-1&&<ArrowRight size={16}/>}</div>)}</div></div>}
       <div className="banker-need-heading"><div><h3>Need matrix</h3><p>Remaining resources each process may still request.</p></div><span>Need = Max − Allocation</span></div>
       <div className="table-scroll banker-need-table"><table><thead><tr><th>Process</th>{result.need[0].map((_,j)=><th key={j}>Resource R{j}</th>)}</tr></thead><tbody>{result.need.map((row,i)=><tr key={i}><td><span className="job-id">P{i}</span></td>{row.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div>
