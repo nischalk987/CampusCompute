@@ -21,6 +21,9 @@ test-engine:
 test-backend:
 	PYTHONPATH=backend python3 -m pytest -q backend/tests
 
+run-api:
+	python3 -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+
 clean:
 	$(MAKE) -C engine clean
 	rm -rf backend/.pytest_cache backend/app/__pycache__ backend/tests/__pycache__
