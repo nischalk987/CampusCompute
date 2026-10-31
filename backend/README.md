@@ -26,6 +26,16 @@ uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
 
 Keep the server bound to `127.0.0.1`. Do not expose this development adapter to the public internet.
 
+## Student authentication
+
+The dashboard starts with a student login/register screen. Registration collects full name, SRN and password; login uses SRN and password. The API stores accounts in `data/campuscompute.sqlite3` (override with `CAMPUSCOMPUTE_AUTH_DB`), enforces unique SRNs, hashes passwords with PBKDF2-HMAC-SHA256, and issues random 12-hour bearer sessions. The SQLite database is ignored by Git so student account data is not committed. Keep this local API bound to localhost; it is a development/student-project authentication flow, not a production identity service.
+
+Routes:
+- `POST /api/auth/register` — create an account and return a session.
+- `POST /api/auth/login` — authenticate by SRN and password.
+- `GET /api/auth/me` — return the current session's student profile.
+- `POST /api/auth/logout` — revoke the current session.
+
 ## Current API operations
 
 | Method and route | Purpose |
