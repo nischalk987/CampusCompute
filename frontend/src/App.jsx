@@ -108,8 +108,10 @@ export default function App() {
   const [max, setMax] = useState('7 5 3; 3 2 2; 9 0 2; 2 2 2; 4 3 3');
   const [search, setSearch] = useState('');
   const [commandCopied, setCommandCopied] = useState(false);
-  const [apiBase, setApiBase] = useState('http://127.0.0.1:8000');
+  const [apiBase, setApiBase] = useState(import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000');
   const [apiStatus, setApiStatus] = useState('checking');
+  const [apiError, setApiError] = useState('');
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [apiEvents, setApiEvents] = useState([]);
   const [apiSummary, setApiSummary] = useState('');
   const [apiBusy, setApiBusy] = useState(false);
@@ -134,12 +136,30 @@ export default function App() {
   }, []);
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 4500);
     const base = apiBase.replace(/\/$/, '');
-    fetch(base + '/health')
-      .then(response => response.ok ? response.json() : Promise.reject(new Error('API health request failed')))
-      .then(data => { if (!cancelled) setApiStatus(data.status === 'ok' ? 'connected' : 'unavailable'); })
-      .catch(() => { if (!cancelled) setApiStatus('disconnected'); });
-    return () => { cancelled = true; };
+    setApiStatus('checking');
+    setApiError('');
+    fetch(base + '/health', { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error('API returned HTTP ' + response.status);
+        return response.json();
+      })
+      .then(data => {
+        if (cancelled) return;
+        if (data.status === 'ok') { setApiStatus('connected'); setApiError(''); }
+        else { setApiStatus('unavailable'); setApiError('Health endpoint responded, but reported an unhealthy status.'); }
+      })
+      .catch(error => {
+        if (cancelled) return;
+        setApiStatus('disconnected');
+        setApiError(error.name === 'AbortError'
+          ? 'Connection timed out. Start FastAPI on ' + base + '.'
+          : 'Cannot reach ' + base + '. Start FastAPI in Ubuntu and check the port/CORS settings.');
+      })
+      .finally(() => window.clearTimeout(timeout));
+    return () => { cancelled = true; controller.abort(); window.clearTimeout(timeout); };
   }, [apiBase]);
   const setPage = (id) => {
     setActive(id);
@@ -231,7 +251,7 @@ export default function App() {
   }
   async function logout() {
     try { if (authToken) await fetch(apiBase.replace(/\/$/, '') + '/api/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + authToken } }); } catch {}
-    localStorage.removeItem('campuscompute_token'); setAuthToken(''); setStudent(null); setActive('overview');
+    localStorage.removeItem('campuscompute_token'); setAuthToken(''); setStudent(null); setActive('overview'); setProfileMenuOpen(false);
   }
   if (!authReady) return <div className="auth-loading">Loading CampusCompute…</div>;
   if (!student) return <AuthScreen mode={authMode} setMode={mode=>{setAuthMode(mode);setAuthError('');}} onSubmit={submitAuth} busy={authBusy} error={authError} />;
@@ -251,7 +271,7 @@ export default function App() {
       <div className="sidebar-bottom"><div className="environment-card"><div className="env-top"><span className="env-light"/><span>Environment</span><Badge tone="neutral">Local</Badge></div><p>Linux / Ubuntu / WSL</p><div className="env-note"><Terminal size={13}/> C engine runs locally</div></div><button className="profile-row" onClick={()=>notify('CampusCompute OS laboratory workspace. Project status percentages are not tracked yet.')}><div className="avatar">CC</div><div className="profile-text"><strong>OS Laboratory</strong><span>Student workspace</span></div><ChevronDown size={16}/></button></div>
     </aside>
     <main className="main-area">
-      <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Open navigation" onClick={()=>setMobileOpen(true)}><Menu size={20}/></button><div className="breadcrumb">Workspace <span>/</span> <strong>{activeItem?.label || 'Overview'}</strong></div></div><div className="topbar-actions"><div className="student-identity"><strong>{student.name}</strong><span>{student.srn}</span></div><button className="button button-quiet auth-logout" onClick={logout}>Log out</button><div className="connection-pill"><span className={`muted-dot ${apiStatus === "connected" ? "muted-dot--connected" : ""}`}/>{apiStatus === "connected" ? "Local API connected" : apiStatus === "checking" ? "Checking local API…" : "Engine API not connected"}</div><button className="icon-button" title="Notifications" aria-label="Notifications" onClick={()=>notify('No notifications. The local engine/API is not connected yet.')}><Bell size={18}/></button><button className="help-button" onClick={()=>notify('Use each module screen to view its status, required inputs and the local run command.')}><CircleHelp size={17}/> Help</button></div></header>
+      <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" aria-label="Open navigation" onClick={()=>setMobileOpen(true)}><Menu size={20}/></button><div className="breadcrumb">Workspace <span>/</span> <strong>{activeItem?.label || 'Overview'}</strong></div></div><div className="topbar-actions"><div className="profile-menu-wrap"><button className={`student-profile-trigger ${profileMenuOpen ? 'student-profile-trigger--open' : ''}`} aria-haspopup="menu" aria-expanded={profileMenuOpen} onClick={()=>setProfileMenuOpen(open=>!open)}><span className="student-avatar">{(student.name || 'S').trim().charAt(0).toUpperCase()}</span><span className="student-profile-copy"><strong>{student.name}</strong><small>{student.srn}</small></span><ChevronDown size={15}/></button>{profileMenuOpen&&<><button className="profile-menu-backdrop" aria-label="Close profile menu" onClick={()=>setProfileMenuOpen(false)}/><div className="student-profile-menu" role="menu"><div className="profile-menu-heading"><strong>{student.name}</strong><span>{student.srn}</span></div><div className="profile-menu-divider"/><button role="menuitem" onClick={()=>{setProfileMenuOpen(false);logout();}}><ArrowRight size={15}/> Log out</button></div></>}</div><button type="button" className={`connection-pill connection-pill--${apiStatus}`} title={apiError || 'FastAPI health endpoint: ' + apiBase + '/health'} onClick={()=>{setApiStatus('checking');setApiError('Checking ' + apiBase + '/health…');window.location.reload();}}><span className={`muted-dot ${apiStatus === "connected" ? "muted-dot--connected" : ""}`}/>{apiStatus === "connected" ? "Local API connected" : apiStatus === "checking" ? "Checking local API…" : "Engine API not connected"}</button><button className="icon-button" title="Notifications" aria-label="Notifications" onClick={()=>notify('No notifications. The local engine/API is not connected yet.')}><Bell size={18}/></button><button className="help-button" onClick={()=>notify('Use each module screen to view its status, required inputs and the local run command.')}><CircleHelp size={17}/> Help</button></div></header>
       <div className="page-wrap">
         {notice&&<div className="notice" role="status"><span><BadgeCheck size={17}/></span>{notice}<button aria-label="Dismiss notice" onClick={()=>setNotice('')}><X size={15}/></button></div>}
         {active==='overview' ? <Overview setPage={setPage} modules={moduleList} apiStatus={apiStatus} /> :
