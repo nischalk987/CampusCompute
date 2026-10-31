@@ -125,3 +125,23 @@ void banker_print_result(const BankerState *s,const BankerResult *r) {
         }
     }
 }
+
+void banker_print_resource_graph(const BankerState *s) {
+    if (!s) return;
+    puts("\nResource Allocation Graph (RAG)");
+    puts("Legend: R -> P = allocated instances | P -> R = remaining need claim");
+    bool has_edges = false;
+    for (size_t p = 0; p < s->process_count; ++p) {
+        for (size_t r = 0; r < s->resource_count; ++r) {
+            if (s->allocation[p][r] > 0) {
+                printf("  R%zu --allocated %u--> P%zu\n", r, s->allocation[p][r], p);
+                has_edges = true;
+            }
+            if (s->need[p][r] > 0) {
+                printf("  P%zu --remaining need %u--> R%zu\n", p, s->need[p][r], r);
+                has_edges = true;
+            }
+        }
+    }
+    if (!has_edges) puts("  No allocation or remaining-need edges.");
+}

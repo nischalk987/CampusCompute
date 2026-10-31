@@ -20,3 +20,10 @@ make -C engine/src/banker test
 ```
 
 The tests include the classic safe example (sequence P1 → P3 → P4 → P0 → P2), an unsafe state, invalid Allocation > Maximum, and invalid dimensions. The CLI prints Available, Allocation, Maximum, derived Need, and the computed result.
+
+## Resource Allocation Graph (RAG)
+After each safety analysis, the CLI prints a directed edge list:
+- `Rk --allocated n--> Pj` represents instances currently allocated from resource Rk to process Pj.
+- `Pj --remaining need n--> Rk` represents the process's remaining claim (Need = Maximum - Allocation), not necessarily a currently blocked request.
+
+The dashboard renders the same edge directions and quantities as a visual graph.

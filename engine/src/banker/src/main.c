@@ -79,6 +79,7 @@ int main(int argc,char **argv) {
         }
         banker_print_state(&state);
         banker_print_result(&state,&result);
+        banker_print_resource_graph(&state);
     }
     puts("Banker's algorithm exited cleanly.");
     return EXIT_SUCCESS;
