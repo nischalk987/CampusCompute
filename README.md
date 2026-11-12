@@ -4,6 +4,13 @@
 
 CampusCompute is a Linux/Ubuntu C project demonstrating operating-system concepts through seven functional modules and an integrated command-line interface. An optional React dashboard and local FastAPI adapter are included, but the C engine is the authoritative implementation for OS demonstrations.
 
+## Contributors
+
+| Name | SRN |
+|---|---|
+| Nischal K | PES1UG26CS834 |
+| Harsha Vardhan M | PES1UG25CS201 |
+
 ## Implementation status
 
 | Requirement | Status | How to run |
