@@ -6,10 +6,12 @@ CampusCompute is a Linux/Ubuntu C project demonstrating operating-system concept
 
 ## Contributors
 
-| Name | SRN |
-|---|---|
-| Nischal K | PES1UG26CS834 |
-| Harsha Vardhan M | PES1UG25CS201 |
+| Contributor | SRN | Implemented areas |
+|---|---|---|
+| **Nischal K (Member 1)** | PES1UG26CS834 | **FR1 — Job Management and Process Lifecycle:** job data model, validation and lifecycle states; **FR2 — CPU Scheduling:** FCFS, Round Robin and non-preemptive Priority with scheduling metrics and execution timeline; **FR5 — Banker's Algorithm:** Need calculation, safe-state analysis and safe sequence. Also owns the React dashboard UI and project integration work. |
+| **Harsha Vardhan M (Member 2)** | PES1UG25CS201 | **FR3 — Producer–Consumer:** POSIX threads, bounded queue, mutexes, condition variables and event logging; **FR4 — Shared-Memory IPC:** POSIX shared memory and semaphore-based process synchronization; **FR6 — Worker Failure Detection:** child-process creation and status handling with `fork()`/`waitpid()`; **FR7 — Resource Limits:** Linux resource-limit demonstration and resource cleanup. |
+
+The contributor areas above reflect the project issue plan and the corresponding merged implementation work. Build/test infrastructure, documentation and end-to-end integration support the project as a whole.
 
 ## Implementation status
 
