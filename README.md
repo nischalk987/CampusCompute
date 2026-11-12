@@ -6,12 +6,45 @@ CampusCompute is a Linux/Ubuntu C project demonstrating operating-system concept
 
 ## Contributors
 
-| Contributor | SRN | Implemented areas |
-|---|---|---|
-| **Nischal K (Member 1)** | PES1UG26CS834 | **FR1 — Job Management and Process Lifecycle:** job data model, validation and lifecycle states; **FR2 — CPU Scheduling:** FCFS, Round Robin and non-preemptive Priority with scheduling metrics and execution timeline; **FR5 — Banker's Algorithm:** Need calculation, safe-state analysis and safe sequence. Also owns the React dashboard UI and project integration work. |
-| **Harsha Vardhan M (Member 2)** | PES1UG25CS201 | **FR3 — Producer–Consumer:** POSIX threads, bounded queue, mutexes, condition variables and event logging; **FR4 — Shared-Memory IPC:** POSIX shared memory and semaphore-based process synchronization; **FR6 — Worker Failure Detection:** child-process creation and status handling with `fork()`/`waitpid()`; **FR7 — Resource Limits:** Linux resource-limit demonstration and resource cleanup. |
+### Nischal K — Member 1
 
-The contributor areas above reflect the project issue plan and the corresponding merged implementation work. Build/test infrastructure, documentation and end-to-end integration support the project as a whole.
+**SRN:** PES1UG26CS834
+
+- **FR1 — Job Management and Process Lifecycle**
+  - Job data model and input validation.
+  - Process/job lifecycle state management.
+- **FR2 — CPU Scheduling**
+  - First Come, First Served (FCFS).
+  - Round Robin scheduling.
+  - Non-preemptive Priority scheduling.
+  - Scheduling metrics and execution timeline.
+- **FR5 — Banker's Algorithm**
+  - Need matrix calculation.
+  - Safety check and safe-state analysis.
+  - Safe-sequence identification.
+- **Dashboard and Integration**
+  - React dashboard UI.
+  - Integration of the project components.
+
+### Harsha Vardhan M — Member 2
+
+**SRN:** PES1UG25CS201
+
+- **FR3 — Producer–Consumer**
+  - POSIX threads and bounded buffer/queue.
+  - Mutex locks and condition variables.
+  - Event logging.
+- **FR4 — Shared-Memory IPC**
+  - POSIX shared-memory communication.
+  - Semaphore-based process synchronization.
+- **FR6 — Worker Failure Detection**
+  - Child-process creation and monitoring using `fork()`.
+  - Process status handling using `waitpid()`.
+- **FR7 — Resource Limits**
+  - Linux resource-limit demonstration.
+  - Resource and file-descriptor cleanup.
+
+*The areas above are organized by contributor based on the project issue plan and merged implementation work. Build/test infrastructure, documentation and end-to-end integration support the project as a whole.*
 
 ## Implementation status
 
