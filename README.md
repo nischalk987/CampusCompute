@@ -6,45 +6,18 @@ CampusCompute is a Linux/Ubuntu C project demonstrating operating-system concept
 
 ## Contributors
 
-### Nischal K — Member 1
+| Contributor | SRN | Task | Implementation points |
+|---|---|---|---|
+| **Nischal K (Member 1)** | PES1UG26CS834 | **FR1 — Job Management and Process Lifecycle** | - Job data model and input validation<br>- Process/job lifecycle state management |
+| **Nischal K (Member 1)** | PES1UG26CS834 | **FR2 — CPU Scheduling** | - First Come, First Served (FCFS)<br>- Round Robin scheduling<br>- Non-preemptive Priority scheduling<br>- Scheduling metrics and execution timeline |
+| **Nischal K (Member 1)** | PES1UG26CS834 | **FR5 — Banker's Algorithm** | - Need matrix calculation<br>- Safety check and safe-state analysis<br>- Safe-sequence identification |
+| **Nischal K (Member 1)** | PES1UG26CS834 | **Dashboard and Integration** | - React dashboard UI<br>- Integration of project components |
+| **Harsha Vardhan M (Member 2)** | PES1UG25CS201 | **FR3 — Producer–Consumer** | - POSIX threads and bounded buffer/queue<br>- Mutex locks and condition variables<br>- Event logging |
+| **Harsha Vardhan M (Member 2)** | PES1UG25CS201 | **FR4 — Shared-Memory IPC** | - POSIX shared-memory communication<br>- Semaphore-based process synchronization |
+| **Harsha Vardhan M (Member 2)** | PES1UG25CS201 | **FR6 — Worker Failure Detection** | - Child-process creation and monitoring using `fork()`<br>- Process status handling using `waitpid()` |
+| **Harsha Vardhan M (Member 2)** | PES1UG25CS201 | **FR7 — Resource Limits** | - Linux resource-limit demonstration<br>- Resource and file-descriptor cleanup |
 
-**SRN:** PES1UG26CS834
-
-- **FR1 — Job Management and Process Lifecycle**
-  - Job data model and input validation.
-  - Process/job lifecycle state management.
-- **FR2 — CPU Scheduling**
-  - First Come, First Served (FCFS).
-  - Round Robin scheduling.
-  - Non-preemptive Priority scheduling.
-  - Scheduling metrics and execution timeline.
-- **FR5 — Banker's Algorithm**
-  - Need matrix calculation.
-  - Safety check and safe-state analysis.
-  - Safe-sequence identification.
-- **Dashboard and Integration**
-  - React dashboard UI.
-  - Integration of the project components.
-
-### Harsha Vardhan M — Member 2
-
-**SRN:** PES1UG25CS201
-
-- **FR3 — Producer–Consumer**
-  - POSIX threads and bounded buffer/queue.
-  - Mutex locks and condition variables.
-  - Event logging.
-- **FR4 — Shared-Memory IPC**
-  - POSIX shared-memory communication.
-  - Semaphore-based process synchronization.
-- **FR6 — Worker Failure Detection**
-  - Child-process creation and monitoring using `fork()`.
-  - Process status handling using `waitpid()`.
-- **FR7 — Resource Limits**
-  - Linux resource-limit demonstration.
-  - Resource and file-descriptor cleanup.
-
-*The areas above are organized by contributor based on the project issue plan and merged implementation work. Build/test infrastructure, documentation and end-to-end integration support the project as a whole.*
+*The task breakdown reflects the project issue plan and merged implementation work. Build/test infrastructure and documentation support the project as a whole.*
 
 ## Implementation status
 
